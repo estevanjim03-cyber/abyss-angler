@@ -239,7 +239,61 @@ struct SaveData: Codable {
     var ownedRooms: [String]?
     var currentRoom: String?
     var soundVolume: Double?
+    // optional so pre-bait/retention saves still decode
+    var baitCounts: [String: Int]?
+    var equippedBait: String?
+    var loginStreak: Int?
+    var lastLoginDay: String?
+    var claimedAchievements: [String]?
+    var records: [String: Int]?
 }
+
+// MARK: - Bait
+
+struct BaitType: Identifiable {
+    let id: String       // asset name
+    let name: String
+    let cost: Int        // coins per bait; 0 = infinite default
+    let desc: String
+}
+
+let allBaits: [BaitType] = [
+    BaitType(id: "bait_worm",    name: "Worm",        cost: 0,   desc: "Trusty. Never runs out."),
+    BaitType(id: "bait_shrimp",  name: "Shrimp",      cost: 25,  desc: "More uncommon fish"),
+    BaitType(id: "bait_squid",   name: "Squid",       cost: 60,  desc: "More rare fish"),
+    BaitType(id: "bait_glowbug", name: "Glowbug",     cost: 120, desc: "More deep-sea fish"),
+    BaitType(id: "bait_golden",  name: "Golden Lure", cost: 300, desc: "Legendary & mythic odds up"),
+]
+
+// MARK: - Achievements
+
+struct Achievement: Identifiable {
+    let id: String
+    let name: String
+    let goal: Int
+    let stat: String     // key into records
+    let coinReward: Int
+    let gemReward: Int
+}
+
+let allAchievements: [Achievement] = [
+    Achievement(id: "catch10",   name: "First Haul",      goal: 10,   stat: "totalCatches", coinReward: 100,  gemReward: 0),
+    Achievement(id: "catch100",  name: "Fishmonger",      goal: 100,  stat: "totalCatches", coinReward: 500,  gemReward: 5),
+    Achievement(id: "catch500",  name: "Sea Legend",      goal: 500,  stat: "totalCatches", coinReward: 2000, gemReward: 20),
+    Achievement(id: "depth250",  name: "Past the Reef",   goal: 250,  stat: "deepestDive",  coinReward: 150,  gemReward: 0),
+    Achievement(id: "depth500",  name: "Into the Kelp",   goal: 500,  stat: "deepestDive",  coinReward: 400,  gemReward: 5),
+    Achievement(id: "depth1000", name: "Trench Diver",    goal: 1000, stat: "deepestDive",  coinReward: 1500, gemReward: 15),
+    Achievement(id: "mythic1",   name: "Myth Confirmed",  goal: 1,    stat: "mythicsCaught", coinReward: 500, gemReward: 10),
+    Achievement(id: "mythic5",   name: "Mythkeeper",      goal: 5,    stat: "mythicsCaught", coinReward: 2500, gemReward: 30),
+    Achievement(id: "coins10k",  name: "Salty Fortune",   goal: 10000, stat: "coinsEarned", coinReward: 1000, gemReward: 10),
+    Achievement(id: "fights50",  name: "Rod Wrestler",    goal: 50,   stat: "fightsWon",    coinReward: 800,  gemReward: 8),
+]
+
+// MARK: - Daily login rewards (7-day streak)
+
+let streakRewards: [(coins: Int, gems: Int)] = [
+    (50, 0), (75, 0), (100, 1), (150, 1), (200, 2), (300, 3), (500, 5),
+]
 
 enum GamePhase {
     case surface, diving, fighting, reeling, summary
@@ -267,6 +321,96 @@ final class GameState {
     var soundOn = true
     var hapticsOn = true
     var soundVolume: Double = 0.8
+
+    // bait
+    var baitCounts: [String: Int] = [:]
+    var equippedBait = "bait_worm"
+
+    // retention
+    var loginStreak = 0
+    var lastLoginDay = ""
+    var pendingLoginReward: Int? = nil   // streak day index (0-6) awaiting claim
+    var claimedAchievements: Set<String> = []
+    var records: [String: Int] = [:]     // totalCatches, deepestDive, mythicsCaught, coinsEarned, fightsWon
+
+    func buyBait(_ bait: BaitType) {
+        guard bait.cost > 0, coins >= bait.cost else { return }
+        coins -= bait.cost
+        baitCounts[bait.id, default: 0] += 1
+        save()
+    }
+
+    /// Consume the equipped bait at dive start; fall back to the infinite worm when out.
+    func consumeBaitForDive() {
+        guard equippedBait != "bait_worm" else { return }
+        let left = baitCounts[equippedBait, default: 0]
+        if left > 0 {
+            baitCounts[equippedBait] = left - 1
+        } else {
+            equippedBait = "bait_worm"
+        }
+        save()
+    }
+
+    // records + achievements
+    func bumpRecord(_ stat: String, by n: Int = 1) {
+        records[stat, default: 0] += n
+        save()
+    }
+    func maxRecord(_ stat: String, _ value: Int) {
+        if value > records[stat, default: 0] {
+            records[stat] = value
+            save()
+        }
+    }
+    var unclaimedAchievements: [Achievement] {
+        allAchievements.filter { !claimedAchievements.contains($0.id) && records[$0.stat, default: 0] >= $0.goal }
+    }
+    func claimAchievement(_ a: Achievement) {
+        guard !claimedAchievements.contains(a.id), records[a.stat, default: 0] >= a.goal else { return }
+        claimedAchievements.insert(a.id)
+        coins += a.coinReward
+        gems += a.gemReward
+        save()
+    }
+
+    /// Daily login: call once at launch. Sets pendingLoginReward for the UI to claim.
+    func checkDailyLogin() {
+        let today = dayString()
+        guard today != lastLoginDay else { return }
+        let yesterday = dayString(.now.addingTimeInterval(-86400))
+        loginStreak = lastLoginDay == yesterday ? loginStreak + 1 : 1
+        lastLoginDay = today
+        pendingLoginReward = (loginStreak - 1) % 7
+        save()
+    }
+    func claimLoginReward() {
+        guard let day = pendingLoginReward else { return }
+        let r = streakRewards[day]
+        coins += r.coins
+        gems += r.gems
+        pendingLoginReward = nil
+        save()
+    }
+
+    // bait crate gacha: 20 gems a crate — baits + coins, tiny golden jackpot
+    func openCrate() -> [(String, Int)]? {
+        guard gems >= 20 else { return nil }
+        gems -= 20
+        var drops: [(String, Int)] = []
+        let roll = Int.random(in: 0..<100)
+        switch roll {
+        case ..<45:  drops = [("bait_shrimp", 3), ("coins", 50)]
+        case ..<75:  drops = [("bait_squid", 2), ("coins", 100)]
+        case ..<92:  drops = [("bait_glowbug", 2), ("coins", 150)]
+        default:     drops = [("bait_golden", 1), ("coins", 400)]
+        }
+        for (id, n) in drops {
+            if id == "coins" { coins += n } else { baitCounts[id, default: 0] += n }
+        }
+        save()
+        return drops
+    }
     var ownedRooms: [String] = ["room_cabin"]
     var currentRoom: String = "room_cabin"
 
@@ -279,6 +423,9 @@ final class GameState {
     // Tension fight (written by scene each frame, read by overlay)
     var fightTension: Double = 0
     var fightProgress: Double = 0
+    var fightZoneCenter: Double = 0.5
+    var fightZoneWidth: Double = 0.4
+    var fightStamina: Double = 1
     var fightHolding = false
     var fightPulling = false
     var fightFishName = ""
@@ -556,7 +703,10 @@ final class GameState {
                             ownedHooks: ownedHooks, currentHook: currentHook,
                             soundOn: soundOn, hapticsOn: hapticsOn,
                             ownedRooms: ownedRooms, currentRoom: currentRoom,
-                            soundVolume: soundVolume)
+                            soundVolume: soundVolume,
+                            baitCounts: baitCounts, equippedBait: equippedBait,
+                            loginStreak: loginStreak, lastLoginDay: lastLoginDay,
+                            claimedAchievements: Array(claimedAchievements), records: records)
         try? JSONEncoder().encode(data).write(to: Self.saveURL)
     }
 
@@ -585,6 +735,12 @@ final class GameState {
         ownedRooms = data.ownedRooms ?? ["room_cabin"]
         currentRoom = data.currentRoom ?? "room_cabin"
         soundVolume = data.soundVolume ?? 0.8
+        baitCounts = data.baitCounts ?? [:]
+        equippedBait = data.equippedBait ?? "bait_worm"
+        loginStreak = data.loginStreak ?? 0
+        lastLoginDay = data.lastLoginDay ?? ""
+        claimedAchievements = Set(data.claimedAchievements ?? [])
+        records = data.records ?? [:]
         refreshQuests()
     }
 }

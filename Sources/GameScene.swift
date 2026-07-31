@@ -359,6 +359,50 @@ final class GameScene: SKScene {
             spawnChest(at: CGPoint(x: c.x + entranceSide * .random(in: -60...60), y: c.y - 70))
             addGreenery(near: CGPoint(x: c.x, y: c.y - 120), spread: w * 0.3)
         }
+
+        generateLandmarks()
+    }
+
+    /// One set piece per biome per dive; each guarantees a rare+ fish nearby.
+    /// Reef: shipwreck. Kelp: caves already exist (dens). Abyss: thermal vent. Trench: vent + extra chest.
+    private var landmarkCenters: [CGPoint] = []
+    private func generateLandmarks() {
+        landmarkCenters = []
+
+        // shipwreck in the reef band
+        let wreckP = CGPoint(x: .random(in: -worldHalfWidth * 0.7 ... worldHalfWidth * 0.7),
+                             y: -CGFloat.random(in: 90...220) * ptPerMeter)
+        let wreck = spriteOrPlaceholder("shipwreck", width: 420)
+        wreck.position = wreckP
+        wreck.zPosition = 2.6
+        terrainLayer.addChild(wreck)
+        obstacles.append((wreckP, 140)) // hull is solid-ish
+        spawnChest(at: CGPoint(x: wreckP.x + .random(in: -80...80), y: wreckP.y + 40))
+        landmarkCenters.append(wreckP)
+
+        // thermal vents in abyss and trench bands
+        for depth in [CGFloat.random(in: 520...760), CGFloat.random(in: 830...970)] {
+            let p = CGPoint(x: .random(in: -worldHalfWidth * 0.8 ... worldHalfWidth * 0.8),
+                            y: -depth * ptPerMeter)
+            let vent = spriteOrPlaceholder("thermal_vent", width: 220)
+            vent.position = p
+            vent.zPosition = 2.6
+            terrainLayer.addChild(vent)
+            obstacles.append((p, 90))
+            // rising glow plume
+            let plume = SKSpriteNode(texture: Self.glowTexture, size: CGSize(width: 60, height: 60))
+            plume.color = SKColor(red: 1, green: 0.45, blue: 0.15, alpha: 1)
+            plume.colorBlendFactor = 1
+            plume.blendMode = .add
+            plume.alpha = 0.5
+            plume.position = CGPoint(x: p.x, y: p.y + 110)
+            terrainLayer.addChild(plume)
+            plume.run(.repeatForever(.sequence([
+                .group([.moveBy(x: 0, y: 90, duration: 1.8), .fadeAlpha(to: 0.1, duration: 1.8)]),
+                .run { plume.position.y -= 90; plume.alpha = 0.5 },
+            ])))
+            landmarkCenters.append(p)
+        }
     }
 
     func rebuildHook() {
@@ -641,21 +685,46 @@ final class GameScene: SKScene {
     }
 
     private func populateFish() {
+        let bait = state?.equippedBait ?? "bait_worm"
         for sp in allFish where !sp.isBoss {
-            let count: Int
+            var count: Int
             switch sp.rarity {
             case .mythic: count = 0 // mythics live in cave dens only
             case .legendary: count = 4
             case .epic: count = 10
             default: count = sp.isBig ? 13 : 24
             }
-            // one instance per width slot so no species clumps in one spot
-            let slots = min(max(count, 1), 12)
-            let slotW = fishHalfWidth * 2 / CGFloat(slots)
-            for i in 0..<count {
-                let x = -fishHalfWidth + slotW * CGFloat(i % slots) + .random(in: 0...slotW)
-                let depth = CGFloat.random(in: sp.minDepth...sp.maxDepth)
-                spawnFish(sp, at: CGPoint(x: x, y: -depth * ptPerMeter))
+            // bait boosts spawn counts for its niche
+            switch bait {
+            case "bait_shrimp" where sp.rarity == .uncommon: count = count * 3 / 2
+            case "bait_squid" where sp.rarity == .rare: count = count * 2
+            case "bait_glowbug" where sp.minDepth >= 400: count = count * 3 / 2
+            case "bait_golden" where sp.rarity == .legendary: count = count * 7 / 4
+            default: break
+            }
+            if sp.rarity <= .uncommon {
+                // commons swim in loose schools of 4-8 around a shared anchor
+                var remaining = count
+                while remaining > 0 {
+                    let schoolSize = min(remaining, Int.random(in: 4...8))
+                    let anchor = CGPoint(x: .random(in: -fishHalfWidth...fishHalfWidth),
+                                         y: -CGFloat.random(in: sp.minDepth...sp.maxDepth) * ptPerMeter)
+                    for _ in 0..<schoolSize {
+                        let p = CGPoint(x: anchor.x + .random(in: -120...120),
+                                        y: anchor.y + .random(in: -80...80))
+                        spawnFish(sp, at: p, school: anchor)
+                    }
+                    remaining -= schoolSize
+                }
+            } else {
+                // one instance per width slot so no species clumps in one spot
+                let slots = min(max(count, 1), 12)
+                let slotW = fishHalfWidth * 2 / CGFloat(slots)
+                for i in 0..<count {
+                    let x = -fishHalfWidth + slotW * CGFloat(i % slots) + .random(in: 0...slotW)
+                    let depth = CGFloat.random(in: sp.minDepth...sp.maxDepth)
+                    spawnFish(sp, at: CGPoint(x: x, y: -depth * ptPerMeter))
+                }
             }
         }
         // each mythic guards the den closest to its home depth
@@ -667,6 +736,22 @@ final class GameScene: SKScene {
             dens.removeAll { $0 == den }
             spawnFish(sp, at: CGPoint(x: den.x, y: den.y - 40))
         }
+        // golden lure: one extra mythic prowls a spare den
+        if bait == "bait_golden", let den = dens.randomElement(), let sp = mythics.randomElement() {
+            spawnFish(sp, at: CGPoint(x: den.x, y: den.y - 40))
+        }
+        // landmarks guarantee a rare+ fish that suits the depth
+        for c in landmarkCenters {
+            let depthM = -c.y / ptPerMeter
+            let candidates = allFish.filter {
+                !$0.isBoss && $0.rarity >= .rare && $0.rarity <= .legendary
+                    && $0.minDepth - 80 < depthM && depthM < $0.maxDepth + 80
+            }
+            if let sp = candidates.randomElement() {
+                spawnFish(sp, at: CGPoint(x: c.x + .random(in: -100...100), y: c.y + 30))
+            }
+        }
+
         // ponytail: UI-test hook, spawns big fish right under the boat. Remove before ship.
         if ProcessInfo.processInfo.environment["SPAWN_BIG_SHALLOW"] != nil,
            let big = allFish.first(where: { $0.isBig }) {
@@ -674,9 +759,13 @@ final class GameScene: SKScene {
         }
     }
 
-    private func spawnFish(_ sp: FishSpecies, at fixed: CGPoint? = nil) {
+    private func spawnFish(_ sp: FishSpecies, at fixed: CGPoint? = nil, school: CGPoint? = nil) {
         let node = spriteOrPlaceholder(sp.id, width: sp.size)
         node.userData = ["id": sp.id]
+        if let school {
+            node.userData?["schoolX"] = school.x
+            node.userData?["schoolY"] = school.y
+        }
         let depth = CGFloat.random(in: sp.minDepth...sp.maxDepth) * ptPerMeter
         node.position = fixed ?? CGPoint(x: .random(in: -worldHalfWidth...worldHalfWidth), y: -depth)
         fishLayer.addChild(node)
@@ -786,6 +875,8 @@ final class GameScene: SKScene {
         hook.position = CGPoint(x: boat.position.x + rodTipOffset.x, y: -20)
         hook.isHidden = false
         hookTrail = []
+        maxDepthThisDive = 0
+        state.consumeBaitForDive()
         rebuildHook() // hook size tracks upgrade level
         state.joyX = 0
         state.joyY = 0
@@ -829,6 +920,7 @@ final class GameScene: SKScene {
         updateLine()
         updateCamera()
         state.depthMeters = max(0, Int(-hook.position.y / ptPerMeter))
+        maxDepthThisDive = max(maxDepthThisDive, state.depthMeters)
     }
 
     private func updateDiving(dt: CGFloat, state: GameState, now: TimeInterval) {
@@ -950,7 +1042,8 @@ final class GameScene: SKScene {
                 node.run(.moveBy(x: node.xScale < 0 ? 220 : -220, y: -40, duration: 0.4))
                 continue
             }
-            if sp.isBig {
+            // commons/uncommons auto-catch; rare+ get the tension fight, harder by rarity
+            if sp.rarity >= .rare {
                 startFight(node, species: sp, state: state)
                 return
             }
@@ -1032,6 +1125,12 @@ final class GameScene: SKScene {
         }
         phase = .surface
         hook.isHidden = true
+        // records feed achievements + local leaderboards
+        state.bumpRecord("totalCatches", by: haul.count)
+        state.bumpRecord("fightsWon", by: fightsWon)
+        state.bumpRecord("mythicsCaught", by: haul.filter { $0.species.rarity == .mythic }.count)
+        state.bumpRecord("coinsEarned", by: haul.reduce(0) { $0 + $1.species.value })
+        state.maxRecord("deepestDive", maxDepthThisDive)
         state.endDive(haul: haul, gemsWon: gemsWon, fightsWon: fightsWon)
     }
 
@@ -1055,11 +1154,12 @@ final class GameScene: SKScene {
                 haptic(.heavy)
             }
 
-            if hookActive && dist < 70 {
-                // flee: dart straight away from the hook
-                let flee = min(sp.speed * 1.2, 150)
-                vx = toHook.dx / max(dist, 1) * flee
-                vy = toHook.dy / max(dist, 1) * flee
+            // skittish rares: flee sooner and faster — approach slow or lose them
+            let fleeRange: CGFloat = sp.rarity >= .rare ? 170 : 70
+            let fleeSpeed: CGFloat = sp.rarity >= .rare ? min(sp.speed * 1.6, 220) : min(sp.speed * 1.2, 150)
+            if hookActive && dist < fleeRange {
+                vx = toHook.dx / max(dist, 1) * fleeSpeed
+                vy = toHook.dy / max(dist, 1) * fleeSpeed
             } else {
                 // free 2D wander: heading drifts randomly, speed stays ~species speed
                 var heading = atan2(vy, vx)
@@ -1068,6 +1168,19 @@ final class GameScene: SKScene {
                 vx = cos(heading) * sp.speed
                 vy = sin(heading) * sp.speed // full vertical freedom — no parallel-only cruising
             }
+
+            // schooling: commons drift gently toward their school anchor
+            if let sx = node.userData?["schoolX"] as? CGFloat,
+               let sy = node.userData?["schoolY"] as? CGFloat {
+                vx += (sx - node.position.x) * 0.06 * dt * 60
+                vy += (sy - node.position.y) * 0.06 * dt * 60
+                vx = min(max(vx, -sp.speed * 1.4), sp.speed * 1.4)
+                vy = min(max(vy, -sp.speed * 1.4), sp.speed * 1.4)
+            }
+
+            // depth currents: alternating horizontal drift per 250m band — ambience
+            let band = Int(min(3, max(0, -node.position.y / (250 * ptPerMeter))))
+            node.position.x += [14.0, -11.0, 9.0, -13.0][band] * dt
 
             // loose home band: free roam, but drift back when far outside it
             let bandTop = -sp.minDepth * ptPerMeter
@@ -1091,6 +1204,7 @@ final class GameScene: SKScene {
 
     private var hookTrail: [CGPoint] = []
     private let maxTrailPoints = 50
+    private var maxDepthThisDive = 0
 
     private func updateLine() {
         let path = CGMutablePath()
@@ -1149,6 +1263,26 @@ final class GameScene: SKScene {
 
     // MARK: tension fight
 
+    // tension mini-game state
+    private var fightZoneCenter: CGFloat = 0.5
+    private var fightZoneWidth: CGFloat = 0.4
+    private var fightStamina: CGFloat = 1
+    private var fightTime: CGFloat = 0
+    private var nextSpikeAt: CGFloat = 2
+    private var spikeUntil: CGFloat = 0
+
+    /// Difficulty knobs per rarity: green-zone width, zone drift speed, spike frequency.
+    private func fightTuning(_ r: Rarity) -> (zone: CGFloat, drift: CGFloat, spikeEvery: CGFloat) {
+        switch r {
+        case .rare:      return (0.45, 0.5, 4.0)
+        case .epic:      return (0.36, 0.8, 3.0)
+        case .legendary: return (0.28, 1.1, 2.2)
+        case .mythic:    return (0.22, 1.4, 1.8)
+        case .boss:      return (0.20, 1.6, 1.5)
+        default:         return (0.50, 0.4, 5.0)
+        }
+    }
+
     private func startFight(_ fish: SKNode, species sp: FishSpecies, state: GameState) {
         phase = .fighting
         fightFish = fish
@@ -1156,13 +1290,22 @@ final class GameScene: SKScene {
         fightTension = 0
         fightProgress = 0
         redlineTime = 0
-        pullPhase = 0
+        fightTime = 0
+        fightStamina = 1
+        let tune = fightTuning(sp.rarity)
+        fightZoneWidth = tune.zone
+        fightZoneCenter = 0.5
+        nextSpikeAt = tune.spikeEvery
+        spikeUntil = 0
         fish.userData?["vx"] = nil
         fish.userData?["vy"] = nil
         fish.removeAllActions()
         state.fightTension = 0
         state.fightProgress = 0
         state.fightPulling = false
+        state.fightZoneCenter = 0.5
+        state.fightZoneWidth = Double(tune.zone)
+        state.fightStamina = 1
         state.fightFishName = sp.name
         state.fightIsBoss = sp.isBoss
         state.phase = .fighting
@@ -1173,34 +1316,56 @@ final class GameScene: SKScene {
         ])), withKey: "thrash")
     }
 
+    /// Tension mini-game: hold to raise tension, release to drop it. Keep the needle
+    /// inside the drifting green zone to reel; red spikes shove tension up — let go or snap.
     private func updateFight(dt: CGFloat, state: GameState) {
         guard let fish = fightFish, let sp = fightSpecies else { return }
+        let tune = fightTuning(sp.rarity)
+        fightTime += dt
 
-        pullPhase += dt
-        let pulling = pullPhase.truncatingRemainder(dividingBy: 2.0) > 1.1
-        state.fightPulling = pulling
-
-        let hookFactor = 1 / (1 + 0.12 * CGFloat(state.hookStrength - 1))
-        let bossFactor: CGFloat = sp.isBoss ? 1.4 : 1
-
-        if state.fightHolding {
-            fightProgress += 0.22 * dt / bossFactor
-            fightTension += (pulling ? 1.0 : 0.45) * hookFactor * bossFactor * dt
-        } else {
-            fightTension -= 0.85 * dt
-            fightProgress -= 0.06 * dt
-            if pulling { fightTension += 0.15 * hookFactor * dt }
+        // red spike: fish surges, tension gets shoved upward
+        if fightTime >= nextSpikeAt && spikeUntil <= fightTime {
+            spikeUntil = fightTime + .random(in: 0.6...1.0)
+            nextSpikeAt = fightTime + tune.spikeEvery + .random(in: -0.4...0.6)
         }
-        fightTension = min(max(fightTension, 0), 1.2)
+        let spiking = fightTime < spikeUntil
+        state.fightPulling = spiking
+
+        // green zone drifts; exhausted fish = wider zone, slower drift
+        let exhausted = fightStamina <= 0
+        let driftSpeed = tune.drift * (exhausted ? 0.4 : 1)
+        fightZoneCenter = 0.5 + sin(fightTime * driftSpeed) * 0.28
+        let zoneW = fightZoneWidth * (exhausted ? 1.7 : 1)
+
+        // needle physics
+        let hookBoost = 1 + 0.1 * CGFloat(state.hookStrength - 1)
+        if state.fightHolding {
+            fightTension += 1.05 * dt
+        } else {
+            fightTension -= 1.35 * dt
+        }
+        if spiking { fightTension += 0.85 * dt }
+        fightTension = min(max(fightTension, 0), 1.15)
+
+        // progress fills while the needle sits in the green zone
+        let inZone = abs(fightTension - fightZoneCenter) < zoneW / 2
+        if inZone {
+            fightProgress += 0.22 * dt * hookBoost
+            fightStamina -= 0.1 * dt // fish tires while you play it right
+        } else {
+            fightProgress -= 0.05 * dt
+        }
         fightProgress = min(max(fightProgress, 0), 1)
+        fightStamina = max(fightStamina, 0)
 
         fish.position = CGPoint(
-            x: hook.position.x + (pulling ? .random(in: -6...6) : 0),
+            x: hook.position.x + (spiking ? .random(in: -7...7) : 0),
             y: hook.position.y - 40)
 
+        // line snap: pegged tension during (or right after) a spike
         if fightTension >= 1 {
             redlineTime += dt
-            if redlineTime > 0.7 { loseFight(state: state); return }
+            if redlineTime > 0.65 { loseFight(state: state); return }
         } else {
             redlineTime = 0
         }
@@ -1209,6 +1374,9 @@ final class GameScene: SKScene {
 
         state.fightTension = Double(fightTension)
         state.fightProgress = Double(fightProgress)
+        state.fightZoneCenter = Double(fightZoneCenter)
+        state.fightZoneWidth = Double(zoneW)
+        state.fightStamina = Double(fightStamina)
     }
 
     private func winFight(species sp: FishSpecies, state: GameState) {

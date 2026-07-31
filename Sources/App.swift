@@ -109,6 +109,9 @@ struct GameView: View {
     @State private var showDex = false
     @State private var showQuests = false
     @State private var showSettings = false
+    @State private var showBaitPicker = false
+    @State private var showTrophies = false
+    @State private var crateDrops: [(String, Int)]? = nil
 
     var body: some View {
         ZStack {
@@ -146,6 +149,9 @@ struct GameView: View {
             }
             MineFlashOverlay(trigger: state.mineFlash)
             if showSettings { settingsOverlay }
+            if showBaitPicker { baitPickerOverlay }
+            if showTrophies { trophiesOverlay }
+            if state.pendingLoginReward != nil { loginRewardOverlay }
             if showSplash {
                 ZStack {
                     Nautical.panelFill.ignoresSafeArea()
@@ -192,6 +198,7 @@ struct GameView: View {
         .onAppear {
             state.load()
             state.refreshQuests()
+            state.checkDailyLogin()
             scene.state = state
             scene.rebuildBoat()
             scene.rebuildHook()
@@ -287,9 +294,15 @@ struct GameView: View {
                         .symbolEffect(.bounce, value: state.bagCount)
                         .animation(.spring(duration: 0.3), value: state.bagCount)
                         .padding(8).background(.black.opacity(0.35), in: Capsule())
-                    Label("\(state.depthMeters)m", systemImage: "arrow.down")
-                        .font(.title3.bold()).foregroundStyle(.white)
-                        .padding(8).background(.black.opacity(0.35), in: Capsule())
+                    VStack(spacing: 1) {
+                        Label("\(state.depthMeters)m", systemImage: "arrow.down")
+                            .font(.title3.bold()).foregroundStyle(.white)
+                        Text(biomeName(state.depthMeters).0)
+                            .font(fredoka(11, "Bold"))
+                            .foregroundStyle(biomeName(state.depthMeters).1)
+                            .animation(.easeInOut(duration: 0.4), value: biomeName(state.depthMeters).0)
+                    }
+                    .padding(8).background(.black.opacity(0.35), in: Capsule())
                 }
             }
             if state.phase == .surface {
@@ -309,6 +322,18 @@ struct GameView: View {
                                     }
                                 }
                         }
+                        Button { showTrophies = true } label: {
+                            Text("🏆").font(.system(size: 26))
+                                .frame(width: 46, height: 46)
+                                .background(Nautical.panelFill, in: RoundedRectangle(cornerRadius: 12))
+                                .overlay(RoundedRectangle(cornerRadius: 12)
+                                    .strokeBorder(Nautical.brassStroke, lineWidth: 1.5))
+                                .overlay(alignment: .topTrailing) {
+                                    if !state.unclaimedAchievements.isEmpty {
+                                        Circle().fill(.red).frame(width: 12, height: 12)
+                                    }
+                                }
+                        }
                     }
                     Spacer()
                 }
@@ -319,6 +344,7 @@ struct GameView: View {
                 Spacer()
                 switch state.phase {
                 case .surface:
+                    baitChip
                     Button { showAquarium = true } label: {
                         hudButton("Aquarium", icon: "icon_aquarium")
                     }
@@ -386,61 +412,276 @@ struct GameView: View {
 
     // MARK: tension fight
 
+    /// Tension mini-game HUD: vertical strain bar with a drifting green zone.
+    /// Hold anywhere to raise the needle, release to drop it; keep it in the green.
+    // MARK: bait
+
+    private var baitChip: some View {
+        Button { showBaitPicker = true } label: {
+            HStack(spacing: 5) {
+                bundleImage(state.equippedBait).resizable().scaledToFit().frame(width: 26, height: 26)
+                if state.equippedBait != "bait_worm" {
+                    Text("\(state.baitCounts[state.equippedBait, default: 0])")
+                        .font(fredoka(14, "Bold")).foregroundStyle(Nautical.cream)
+                }
+            }
+            .padding(.horizontal, 10).padding(.vertical, 8)
+            .background(Nautical.panelFill, in: Capsule())
+            .overlay(Capsule().strokeBorder(Nautical.brassStroke, lineWidth: 1.5))
+            .shadow(color: .black.opacity(0.3), radius: 5, y: 2)
+        }
+    }
+
+    private var baitPickerOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.5).ignoresSafeArea().onTapGesture { showBaitPicker = false }
+            VStack(spacing: Nautical.s1) {
+                Text("Bait").gameText(22, weight: "Bold")
+                ForEach(allBaits) { bait in
+                    let owned = bait.cost == 0 ? Int.max : state.baitCounts[bait.id, default: 0]
+                    HStack(spacing: 10) {
+                        bundleImage(bait.id).resizable().scaledToFit().frame(width: 34, height: 34)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(bait.name).font(fredoka(15, "SemiBold")).foregroundStyle(Nautical.cream)
+                            Text(bait.desc).font(fredoka(11)).foregroundStyle(Nautical.cream.opacity(0.6))
+                        }
+                        Spacer()
+                        if bait.cost == 0 {
+                            Text("∞").font(fredoka(16, "Bold")).foregroundStyle(Nautical.brassBright)
+                        } else {
+                            Text("×\(owned)").font(fredoka(14, "Bold")).foregroundStyle(Nautical.cream)
+                            Button {
+                                state.buyBait(bait)
+                            } label: {
+                                (Text("\(bait.cost) ") + sdT)
+                                    .font(fredoka(12, "Bold")).foregroundStyle(Nautical.brassBright)
+                                    .padding(.horizontal, 8).padding(.vertical, 5)
+                                    .background(Nautical.navy, in: Capsule())
+                                    .overlay(Capsule().strokeBorder(Nautical.brass.opacity(0.6), lineWidth: 1))
+                            }
+                            .disabled(state.coins < bait.cost)
+                            .opacity(state.coins < bait.cost ? 0.4 : 1)
+                        }
+                    }
+                    .padding(8)
+                    .background(RoundedRectangle(cornerRadius: 12)
+                        .fill(state.equippedBait == bait.id ? Nautical.brass.opacity(0.25) : .white.opacity(0.05)))
+                    .overlay(RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(state.equippedBait == bait.id ? Nautical.brassBright : .clear, lineWidth: 1.5))
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        // equip if we own one (or it's the worm)
+                        if bait.cost == 0 || owned > 0 { state.equippedBait = bait.id; state.save() }
+                    }
+                }
+            }
+            .padding(Nautical.s2)
+            .frame(maxWidth: 380)
+            .background(RoundedRectangle(cornerRadius: Nautical.panelRadius).fill(Nautical.panelFill))
+            .overlay(RoundedRectangle(cornerRadius: Nautical.panelRadius).strokeBorder(Nautical.brassStroke, lineWidth: 2))
+        }
+    }
+
+    // MARK: trophies (achievements + records + crates)
+
+    private var trophiesOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.5).ignoresSafeArea().onTapGesture { showTrophies = false; crateDrops = nil }
+            VStack(spacing: Nautical.s1) {
+                Text("Trophies").gameText(22, weight: "Bold")
+                ScrollView {
+                    VStack(spacing: 8) {
+                        // records
+                        HStack {
+                            recordCell("Catches", state.records["totalCatches", default: 0])
+                            recordCell("Deepest", state.records["deepestDive", default: 0], suffix: "m")
+                            recordCell("Mythics", state.records["mythicsCaught", default: 0])
+                            recordCell("Fights", state.records["fightsWon", default: 0])
+                        }
+                        // bait crate gacha
+                        HStack(spacing: 10) {
+                            bundleImage("crate").resizable().scaledToFit().frame(width: 44, height: 44)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text("Bait Crate").font(fredoka(15, "SemiBold")).foregroundStyle(Nautical.cream)
+                                if let drops = crateDrops {
+                                    Text(drops.map { $0.0 == "coins" ? "+\($0.1) coins" : "\($0.1)× \($0.0.replacingOccurrences(of: "bait_", with: ""))" }
+                                        .joined(separator: ", "))
+                                        .font(fredoka(11)).foregroundStyle(Nautical.brassBright)
+                                } else {
+                                    Text("Random baits + coins").font(fredoka(11)).foregroundStyle(Nautical.cream.opacity(0.6))
+                                }
+                            }
+                            Spacer()
+                            Button {
+                                withAnimation(.spring(duration: 0.4)) { crateDrops = state.openCrate() }
+                            } label: {
+                                (Text("20 ") + gemT).font(fredoka(13, "Bold")).foregroundStyle(.cyan)
+                                    .padding(.horizontal, 10).padding(.vertical, 6)
+                                    .background(Nautical.navy, in: Capsule())
+                                    .overlay(Capsule().strokeBorder(Nautical.brass.opacity(0.6), lineWidth: 1))
+                            }
+                            .disabled(state.gems < 20)
+                            .opacity(state.gems < 20 ? 0.4 : 1)
+                        }
+                        .padding(8)
+                        .background(RoundedRectangle(cornerRadius: 12).fill(.white.opacity(0.05)))
+                        // achievements
+                        ForEach(allAchievements) { a in
+                            let progress = state.records[a.stat, default: 0]
+                            let claimed = state.claimedAchievements.contains(a.id)
+                            let ready = !claimed && progress >= a.goal
+                            HStack(spacing: 10) {
+                                Text(claimed ? "✅" : "🏅").font(.system(size: 22))
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(a.name).font(fredoka(14, "SemiBold")).foregroundStyle(Nautical.cream)
+                                    Text("\(min(progress, a.goal))/\(a.goal)")
+                                        .font(fredoka(11)).foregroundStyle(Nautical.cream.opacity(0.6))
+                                }
+                                Spacer()
+                                if ready {
+                                    Button { state.claimAchievement(a) } label: {
+                                        Text("CLAIM").font(fredoka(12, "Bold")).foregroundStyle(.black)
+                                            .padding(.horizontal, 10).padding(.vertical, 6)
+                                            .background(Nautical.brassBright, in: Capsule())
+                                    }
+                                } else if !claimed {
+                                    (Text("\(a.coinReward) ") + sdT + Text(a.gemReward > 0 ? " \(a.gemReward) " : "") + (a.gemReward > 0 ? gemT : Text("")))
+                                        .font(fredoka(11, "Bold")).foregroundStyle(Nautical.cream.opacity(0.5))
+                                }
+                            }
+                            .padding(8)
+                            .background(RoundedRectangle(cornerRadius: 12)
+                                .fill(ready ? Nautical.brass.opacity(0.2) : .white.opacity(0.05)))
+                        }
+                    }
+                }
+                .frame(maxHeight: 300)
+            }
+            .padding(Nautical.s2)
+            .frame(maxWidth: 420)
+            .background(RoundedRectangle(cornerRadius: Nautical.panelRadius).fill(Nautical.panelFill))
+            .overlay(RoundedRectangle(cornerRadius: Nautical.panelRadius).strokeBorder(Nautical.brassStroke, lineWidth: 2))
+        }
+    }
+
+    private func recordCell(_ label: String, _ value: Int, suffix: String = "") -> some View {
+        VStack(spacing: 2) {
+            Text("\(value)\(suffix)").font(fredoka(16, "Bold")).foregroundStyle(Nautical.brassBright)
+            Text(label).font(fredoka(10)).foregroundStyle(Nautical.cream.opacity(0.6))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 10).fill(.white.opacity(0.05)))
+    }
+
+    // MARK: daily login
+
+    private var loginRewardOverlay: some View {
+        let day = state.pendingLoginReward ?? 0
+        let r = streakRewards[day]
+        return ZStack {
+            Color.black.opacity(0.55).ignoresSafeArea()
+            VStack(spacing: Nautical.s2) {
+                Text("Daily Reward").gameText(24, weight: "Bold")
+                Text("Day \(day + 1) of 7 — streak \(state.loginStreak)")
+                    .font(fredoka(13)).foregroundStyle(Nautical.cream.opacity(0.7))
+                HStack(spacing: 6) {
+                    ForEach(0..<7, id: \.self) { i in
+                        Circle()
+                            .fill(i <= day ? Nautical.brassBright : .white.opacity(0.15))
+                            .frame(width: 14, height: 14)
+                    }
+                }
+                (Text("+\(r.coins) ") + sdT + Text(r.gems > 0 ? "   +\(r.gems) " : "") + (r.gems > 0 ? gemT : Text("")))
+                    .font(fredoka(20, "Bold")).foregroundStyle(Nautical.brassBright)
+                Button { withAnimation { state.claimLoginReward() } } label: {
+                    Text("CLAIM").gameText(18, weight: "Bold")
+                        .padding(.horizontal, 44).padding(.vertical, 12)
+                        .background(Capsule().fill(LinearGradient(colors: [Nautical.brassBright, Nautical.brass],
+                                                                  startPoint: .top, endPoint: .bottom)))
+                }
+            }
+            .padding(Nautical.s3)
+            .background(RoundedRectangle(cornerRadius: Nautical.panelRadius).fill(Nautical.panelFill))
+            .overlay(RoundedRectangle(cornerRadius: Nautical.panelRadius).strokeBorder(Nautical.brassStroke, lineWidth: 2))
+        }
+    }
+
+    /// Depth-band biome name + tint for the HUD.
+    private func biomeName(_ m: Int) -> (String, Color) {
+        switch m {
+        case ..<250: return ("REEF", Nautical.sand)
+        case ..<500: return ("KELP FOREST", .green)
+        case ..<800: return ("ABYSS", .cyan)
+        default:     return ("TRENCH", Nautical.danger)
+        }
+    }
+
     private var fightOverlay: some View {
-        let redlining = state.fightTension > 0.75
+        let strained = state.fightTension > 0.85
+        let barH: CGFloat = 190
         return ZStack(alignment: .bottomTrailing) {
-            Color.clear
+            // line-strain vignette when tension pegs
+            RadialGradient(colors: [.clear, .clear, Nautical.danger.opacity(strained ? 0.5 : 0)],
+                           center: .center, startRadius: 160, endRadius: 520)
+                .ignoresSafeArea()
+                .animation(.easeOut(duration: 0.15), value: strained)
             VStack(spacing: 6) {
                 HStack(spacing: 6) {
-                    if state.fightIsBoss {
-                        Image(systemName: "crown.fill").foregroundStyle(.yellow)
-                    }
-                    Text(state.fightFishName)
-                        .font(.headline.weight(.heavy))
-                        .foregroundStyle(state.fightIsBoss ? .orange : .white)
+                    if state.fightIsBoss { Text("👑") }
+                    Text(state.fightFishName).gameText(17, color: state.fightIsBoss ? .orange : .white)
                 }
-                ZStack {
-                    // outer ring: tension
-                    fightRing(value: min(state.fightTension, 1), diameter: 150, width: 16,
-                              gradient: AngularGradient(
-                                colors: [.green, .yellow, .orange, .red],
-                                center: .center,
-                                startAngle: .degrees(-90), endAngle: .degrees(270)),
-                              glow: redlining ? .red : nil)
-                    // redline marker tick at 0.75
-                    Rectangle()
-                        .fill(.white.opacity(0.9))
-                        .frame(width: 3, height: 16)
-                        .offset(y: -75)
-                        .rotationEffect(.degrees(0.75 * 360))
-                    // inner ring: catch progress
-                    fightRing(value: state.fightProgress, diameter: 106, width: 12,
-                              gradient: AngularGradient(
-                                colors: [.cyan, .blue, .cyan],
-                                center: .center,
-                                startAngle: .degrees(-90), endAngle: .degrees(270)),
-                              glow: nil)
-                    VStack(spacing: 2) {
-                        Text(state.fightPulling ? "PULLING" : (state.fightHolding ? "REELING" : "HOLD"))
-                            .font(.system(size: 13, weight: .black))
-                            .foregroundStyle(state.fightPulling ? .red : .white)
-                            .scaleEffect(state.fightPulling ? 1.12 : 1)
-                            .animation(.spring(duration: 0.25), value: state.fightPulling)
-                        Text("\(Int(state.fightProgress * 100))%")
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(.cyan)
+                HStack(spacing: 12) {
+                    // catch progress column
+                    VStack(spacing: 4) {
+                        Text("\(Int(state.fightProgress * 100))%").gameText(13, color: .cyan)
+                        GeometryReader { _ in
+                            ZStack(alignment: .bottom) {
+                                Capsule().fill(.white.opacity(0.12))
+                                Capsule().fill(LinearGradient(colors: [.cyan, .blue], startPoint: .bottom, endPoint: .top))
+                                    .frame(height: max(6, barH * state.fightProgress))
+                                    .animation(.linear(duration: 0.08), value: state.fightProgress)
+                            }
+                        }
+                        .frame(width: 14, height: barH)
+                        // fish stamina
+                        Text(state.fightStamina <= 0 ? "TIRED" : "💪")
+                            .gameText(11, color: state.fightStamina <= 0 ? .green : .white)
                     }
+                    // tension bar with green zone + needle
+                    ZStack(alignment: .bottom) {
+                        Capsule().fill(
+                            LinearGradient(colors: [Nautical.success.opacity(0.25), .yellow.opacity(0.25), Nautical.danger.opacity(0.4)],
+                                           startPoint: .bottom, endPoint: .top))
+                        // drifting green zone
+                        Capsule()
+                            .fill(Nautical.success.opacity(0.75))
+                            .frame(width: 34, height: barH * state.fightZoneWidth)
+                            .offset(y: -barH * (state.fightZoneCenter - state.fightZoneWidth / 2))
+                            .animation(.linear(duration: 0.1), value: state.fightZoneCenter)
+                        // needle
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(.white)
+                            .frame(width: 42, height: 5)
+                            .shadow(color: strained ? Nautical.danger : .black.opacity(0.5), radius: 4)
+                            .offset(y: -barH * min(state.fightTension, 1))
+                            .animation(.linear(duration: 0.05), value: state.fightTension)
+                    }
+                    .frame(width: 34, height: barH)
+                    .modifier(ShakeEffect(shakes: state.fightPulling ? 2 : 0))
+                    .animation(.easeInOut(duration: 0.5), value: state.fightPulling)
                 }
-                .padding(14)
-                .background(
-                    Circle()
-                        .fill(.black.opacity(0.55))
-                        .overlay(Circle().strokeBorder(.white.opacity(0.25), lineWidth: 1))
-                )
-                .shadow(color: redlining ? .red.opacity(0.6) : .black.opacity(0.4),
-                        radius: redlining ? 18 : 10)
-                .animation(.easeOut(duration: 0.2), value: redlining)
+                Text(state.fightPulling ? "SURGE — LET GO!" : (state.fightHolding ? "REELING" : "HOLD"))
+                    .gameText(13, color: state.fightPulling ? Nautical.danger : .white)
+                    .animation(.spring(duration: 0.25), value: state.fightPulling)
             }
+            .padding(16)
+            .background(RoundedRectangle(cornerRadius: Nautical.panelRadius)
+                .fill(.black.opacity(0.55))
+                .overlay(RoundedRectangle(cornerRadius: Nautical.panelRadius)
+                    .strokeBorder(strained ? Nautical.danger.opacity(0.8) : .white.opacity(0.25), lineWidth: 1.5)))
+            .shadow(color: strained ? Nautical.danger.opacity(0.6) : .black.opacity(0.4),
+                    radius: strained ? 18 : 10)
             .padding(.trailing, 30)
             .padding(.bottom, 20)
         }
@@ -451,21 +692,6 @@ struct GameView: View {
                 .onChanged { _ in state.fightHolding = true }
                 .onEnded { _ in state.fightHolding = false }
         )
-    }
-
-    private func fightRing(value: Double, diameter: CGFloat, width: CGFloat,
-                           gradient: AngularGradient, glow: Color?) -> some View {
-        ZStack {
-            Circle()
-                .stroke(.white.opacity(0.14), lineWidth: width)
-            Circle()
-                .trim(from: 0, to: max(value, 0.02))
-                .stroke(gradient, style: StrokeStyle(lineWidth: width, lineCap: .round))
-                .shadow(color: glow?.opacity(0.8) ?? .clear, radius: 6)
-                .animation(.linear(duration: 0.08), value: value)
-        }
-        .rotationEffect(.degrees(-90)) // start at 12 o'clock
-        .frame(width: diameter, height: diameter)
     }
 
     // MARK: haul summary

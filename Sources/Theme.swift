@@ -74,6 +74,19 @@ extension View {
     }
 }
 
+// MARK: - Shake (used for line-strain feedback in the fight HUD)
+
+struct ShakeEffect: GeometryEffect {
+    var shakes: CGFloat
+    var animatableData: CGFloat {
+        get { shakes }
+        set { shakes = newValue }
+    }
+    func effectValue(size: CGSize) -> ProjectionTransform {
+        ProjectionTransform(CGAffineTransform(translationX: sin(shakes * .pi * 8) * 3, y: 0))
+    }
+}
+
 // MARK: - Press feedback for every game button
 
 struct PressButtonStyle: ButtonStyle {
