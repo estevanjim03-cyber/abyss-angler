@@ -114,9 +114,13 @@ struct GameView: View {
         ZStack {
             SpriteView(scene: scene)
                 .ignoresSafeArea()
-            // soft vignette adds depth without touching the scene
-            RadialGradient(colors: [.clear, .clear, .black.opacity(0.22)],
-                           center: .center, startRadius: 180, endRadius: 560)
+            // heavy vignette, weighted toward the bottom for that deep-sea mood
+            RadialGradient(colors: [.clear, .clear, .black.opacity(0.45)],
+                           center: .center, startRadius: 160, endRadius: 540)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+            LinearGradient(colors: [.clear, .clear, .black.opacity(0.35)],
+                           startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
             hud

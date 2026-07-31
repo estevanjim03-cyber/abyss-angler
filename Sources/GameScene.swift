@@ -48,7 +48,7 @@ final class GameScene: SKScene {
     // MARK: setup
 
     override func didMove(to view: SKView) {
-        backgroundColor = SKColor(red: 0.29, green: 0.75, blue: 0.71, alpha: 1)
+        backgroundColor = SKColor(red: 0.40, green: 0.66, blue: 0.65, alpha: 1) // muted #66A8A5
         addChild(cameraNode)
         camera = cameraNode
 
@@ -132,14 +132,16 @@ final class GameScene: SKScene {
         let depthPts = Self.floorDepthPts + 200
         let size = CGSize(width: 4, height: 512)
         let img = UIGraphicsImageRenderer(size: size).image { ctx in
+            // moody: thin muted-teal haze at the very top, then deep navy/near-black fast
             let colors = [
-                UIColor(red: 0.29, green: 0.75, blue: 0.71, alpha: 1).cgColor,
-                UIColor(red: 0.10, green: 0.45, blue: 0.62, alpha: 1).cgColor,
-                UIColor(red: 0.04, green: 0.16, blue: 0.36, alpha: 1).cgColor,
-                UIColor(red: 0.01, green: 0.03, blue: 0.10, alpha: 1).cgColor,
+                UIColor(red: 0.40, green: 0.66, blue: 0.65, alpha: 1).cgColor, // #66A8A5 haze
+                UIColor(red: 0.11, green: 0.24, blue: 0.25, alpha: 1).cgColor, // teal falloff
+                UIColor(red: 0.08, green: 0.16, blue: 0.16, alpha: 1).cgColor, // #152A29
+                UIColor(red: 0.04, green: 0.12, blue: 0.12, alpha: 1).cgColor, // #0B1F1E
             ]
+            // haze dies by ~30m, full navy by ~150m — most of the dive reads deep
             let grad = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
-                                  colors: colors as CFArray, locations: [0, 0.25, 0.65, 1])!
+                                  colors: colors as CFArray, locations: [0, 0.03, 0.15, 1])!
             ctx.cgContext.drawLinearGradient(grad, start: .zero,
                                              end: CGPoint(x: 0, y: size.height), options: [])
         }
@@ -152,7 +154,7 @@ final class GameScene: SKScene {
         // god rays near the surface
         for i in 0..<36 {
             let ray = SKSpriteNode(color: .white, size: CGSize(width: 60, height: 700))
-            ray.alpha = 0.06
+            ray.alpha = 0.035
             ray.zRotation = CGFloat.random(in: -0.28 ... -0.12)
             ray.position = CGPoint(x: -worldHalfWidth + CGFloat(i) * worldHalfWidth / 17.5
                                        + .random(in: -60...60),
@@ -172,7 +174,8 @@ final class GameScene: SKScene {
         addChild(terrainLayer)
         generateTerrain()
 
-        let foam = SKSpriteNode(color: .white, size: CGSize(width: worldHalfWidth * 4, height: 6))
+        let foam = SKSpriteNode(color: .white, size: CGSize(width: worldHalfWidth * 4, height: 4))
+        foam.alpha = 0.25 // soft surface hint, not a hard white bar
         foam.position = .zero
         foam.zPosition = -8
         addChild(foam)
@@ -186,9 +189,9 @@ final class GameScene: SKScene {
         for _ in 0..<70 {
             let id = ["rock1", "rock2", "rock_pillar", "seaweed1"].randomElement()!
             let n = spriteOrPlaceholder(id, width: .random(in: 140...340))
-            n.color = SKColor(red: 0.02, green: 0.08, blue: 0.15, alpha: 1)
-            n.colorBlendFactor = 0.9
-            n.alpha = 0.5
+            n.color = SKColor(red: 0.01, green: 0.05, blue: 0.05, alpha: 1)
+            n.colorBlendFactor = 1.0 // pure near-black silhouette
+            n.alpha = 0.7
             // spread across 60% of world coords: layer moves at 0.4x camera so it covers the view
             n.position = CGPoint(x: .random(in: -worldHalfWidth * 0.62 ... worldHalfWidth * 0.62),
                                  y: -CGFloat.random(in: 40...1000) * ptPerMeter)
@@ -200,14 +203,14 @@ final class GameScene: SKScene {
     /// Ambient bubbles rising through the water column near the camera.
     private func startAmbientBubbles() {
         run(.repeatForever(.sequence([
-            .wait(forDuration: 0.5),
+            .wait(forDuration: 1.4), // sparse — mood, not soda
             .run { [weak self] in
                 guard let self else { return }
                 let cam = self.cameraNode.position
                 guard cam.y < 60 else { return } // only underwater
                 let b = SKShapeNode(circleOfRadius: .random(in: 2...5))
-                b.fillColor = SKColor(white: 1, alpha: 0.28)
-                b.strokeColor = SKColor(white: 1, alpha: 0.15)
+                b.fillColor = SKColor(white: 1, alpha: 0.12)
+                b.strokeColor = SKColor(white: 1, alpha: 0.06)
                 b.position = CGPoint(x: cam.x + .random(in: -500...500),
                                      y: cam.y - .random(in: 100...260))
                 b.zPosition = 2.2
@@ -689,7 +692,10 @@ final class GameScene: SKScene {
         // vertical crawl ~8 m/s so 1000m takes ~2 min; horizontal stays nimble
         let stunned = now < stunUntil
         let vSpeed: CGFloat = stunned ? 0 : 50
-        let hSpeed: CGFloat = stunned ? 0 : 130
+        // ponytail: reel track doubles as the horizontal-thrust upgrade — lvl1 ≈ old 130, lvl10 = 400.
+        // Vertical descent untouched so 1000m stays ~2 min.
+        let reelLvl = CGFloat(state.levels[.reel] ?? 1)
+        let hSpeed: CGFloat = stunned ? 0 : 130 + (reelLvl - 1) * 30
         var pos = hook.position
         pos.y -= (stunned ? 10 : 0) * dt
         pos.x += CGFloat(state.joyX) * hSpeed * dt
