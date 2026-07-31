@@ -8,3 +8,4 @@ xcuserdata/
 
 # xcodegen output is reproducible from project.yml
 FishingGame.xcodeproj/
+IMG_43*.PNG
