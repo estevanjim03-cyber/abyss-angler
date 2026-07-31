@@ -12,6 +12,12 @@ enum Nautical {
     static let danger = Color(red: 0.85, green: 0.25, blue: 0.2)
     static let success = Color(red: 0.15, green: 0.55, blue: 0.3)
 
+    // gold/brass accents pulled from the reference art
+    static let copper = Color(red: 0.82, green: 0.55, blue: 0.27)  // #D18D46
+    static let sand   = Color(red: 0.98, green: 0.82, blue: 0.67)  // #F9D1AA
+    static let tan    = Color(red: 0.65, green: 0.49, blue: 0.33)  // #A57E54
+    static let bronze = Color(red: 0.73, green: 0.58, blue: 0.38)  // #BB9361
+
     static var brassStroke: LinearGradient {
         LinearGradient(colors: [brassBright, brass, brassBright.opacity(0.7)],
                        startPoint: .topLeading, endPoint: .bottomTrailing)

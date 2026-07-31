@@ -20,16 +20,31 @@ struct JoystickView: View {
     @State private var knob = CGSize.zero
     private let radius: CGFloat = 52
 
+    @State private var pressed = false
+
     var body: some View {
         ZStack {
+            // brass ring base over a dark inner well
             Circle()
-                .fill(.black.opacity(0.3))
-                .overlay(Circle().strokeBorder(.white.opacity(0.35), lineWidth: 2))
+                .fill(RadialGradient(colors: [Nautical.navyLight.opacity(0.85), Nautical.navy.opacity(0.9)],
+                                     center: .center, startRadius: 4, endRadius: radius + 12))
+                .overlay(
+                    Circle().strokeBorder(
+                        LinearGradient(colors: [Nautical.sand, Nautical.copper, Nautical.tan],
+                                       startPoint: .topLeading, endPoint: .bottomTrailing),
+                        lineWidth: 6))
                 .frame(width: radius * 2 + 24, height: radius * 2 + 24)
+                .shadow(color: .black.opacity(0.45), radius: 8, y: 4)
+            // glass knob: glows + swells slightly while held
             Circle()
-                .fill(.white.opacity(0.85))
+                .fill(RadialGradient(colors: [.white.opacity(0.95), Nautical.sand.opacity(0.8), Nautical.copper.opacity(0.7)],
+                                     center: .init(x: 0.35, y: 0.3), startRadius: 2, endRadius: 34))
+                .overlay(Circle().strokeBorder(.white.opacity(0.5), lineWidth: 1))
                 .frame(width: 52, height: 52)
-                .shadow(radius: 4)
+                .scaleEffect(pressed ? 1.1 : 1)
+                .shadow(color: pressed ? Nautical.sand.opacity(0.8) : .black.opacity(0.35),
+                        radius: pressed ? 10 : 4, y: 2)
+                .animation(.spring(duration: 0.2), value: pressed)
                 .offset(knob)
         }
         .contentShape(Circle())
@@ -41,6 +56,7 @@ struct JoystickView: View {
         .gesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { g in
+                    pressed = true
                     let dx = g.translation.width, dy = g.translation.height
                     let mag = max(hypot(dx, dy), 1)
                     let clamped = min(mag, radius)
@@ -49,6 +65,7 @@ struct JoystickView: View {
                     state.joyY = Double(-dy / mag * clamped / radius) // screen down = world down
                 }
                 .onEnded { _ in
+                    pressed = false
                     knob = .zero
                     state.joyX = 0
                     state.joyY = 0
@@ -115,8 +132,14 @@ struct GameView: View {
                 .padding(.leading, 28)
                 .padding(.bottom, 24)
             }
-            if state.phase == .fighting { fightOverlay }
-            if state.phase == .summary { summaryOverlay }
+            if state.phase == .fighting {
+                fightOverlay
+                    .transition(.scale(scale: 0.8).combined(with: .opacity))
+            }
+            if state.phase == .summary {
+                summaryOverlay
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
             MineFlashOverlay(trigger: state.mineFlash)
             if showSettings { settingsOverlay }
             if showSplash {
@@ -169,10 +192,16 @@ struct GameView: View {
             scene.rebuildBoat()
             scene.rebuildHook()
         }
-        .sheet(isPresented: $showShop) { ShopView(state: state, scene: scene) }
-        .sheet(isPresented: $showInventory) { InventoryView(state: state) }
-        .sheet(isPresented: $showAquarium) { AquariumView(state: state) }
-        .sheet(isPresented: $showDex) { DexView(state: state) }
+        .animation(.spring(duration: 0.35), value: state.phase)
+        // full-scene screens get no system chrome; list sheets lose the grabber
+        .fullScreenCover(isPresented: $showShop) { ShopView(state: state, scene: scene) }
+        .fullScreenCover(isPresented: $showAquarium) { AquariumView(state: state) }
+        .sheet(isPresented: $showInventory) {
+            InventoryView(state: state).presentationDragIndicator(.hidden)
+        }
+        .sheet(isPresented: $showDex) {
+            DexView(state: state).presentationDragIndicator(.hidden)
+        }
         .statusBarHidden()
     }
 

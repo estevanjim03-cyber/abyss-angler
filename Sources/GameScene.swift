@@ -165,6 +165,8 @@ final class GameScene: SKScene {
         }
 
         buildWaves()
+        buildParallaxSilhouettes()
+        startAmbientBubbles()
         terrainLayer.zPosition = 2.5
         addChild(terrainLayer)
         generateTerrain()
@@ -173,6 +175,50 @@ final class GameScene: SKScene {
         foam.position = .zero
         foam.zPosition = -8
         addChild(foam)
+    }
+
+    private let parallaxLayer = SKNode()
+
+    /// Distant terrain silhouettes that scroll slower than the world — cheap depth.
+    private func buildParallaxSilhouettes() {
+        parallaxLayer.zPosition = -8.8
+        for _ in 0..<70 {
+            let id = ["rock1", "rock2", "rock_pillar", "seaweed1"].randomElement()!
+            let n = spriteOrPlaceholder(id, width: .random(in: 140...340))
+            n.color = SKColor(red: 0.02, green: 0.08, blue: 0.15, alpha: 1)
+            n.colorBlendFactor = 0.9
+            n.alpha = 0.5
+            // spread across 60% of world coords: layer moves at 0.4x camera so it covers the view
+            n.position = CGPoint(x: .random(in: -worldHalfWidth * 0.62 ... worldHalfWidth * 0.62),
+                                 y: -CGFloat.random(in: 40...1000) * ptPerMeter)
+            parallaxLayer.addChild(n)
+        }
+        addChild(parallaxLayer)
+    }
+
+    /// Ambient bubbles rising through the water column near the camera.
+    private func startAmbientBubbles() {
+        run(.repeatForever(.sequence([
+            .wait(forDuration: 0.5),
+            .run { [weak self] in
+                guard let self else { return }
+                let cam = self.cameraNode.position
+                guard cam.y < 60 else { return } // only underwater
+                let b = SKShapeNode(circleOfRadius: .random(in: 2...5))
+                b.fillColor = SKColor(white: 1, alpha: 0.28)
+                b.strokeColor = SKColor(white: 1, alpha: 0.15)
+                b.position = CGPoint(x: cam.x + .random(in: -500...500),
+                                     y: cam.y - .random(in: 100...260))
+                b.zPosition = 2.2
+                self.addChild(b)
+                b.run(.sequence([
+                    .group([.moveBy(x: .random(in: -20...20), y: .random(in: 260...420),
+                                    duration: .random(in: 4...7)),
+                            .fadeOut(withDuration: .random(in: 4...7))]),
+                    .removeFromParent(),
+                ]))
+            },
+        ])))
     }
 
     /// Two scrolling sine-wave bands at the surface.
@@ -875,6 +921,8 @@ final class GameScene: SKScene {
 
     private func updateCamera() {
         cameraNode.childNode(withName: "skyBackdrop")?.isHidden = cameraNode.position.y < -80
+        // parallax: distant layer follows the camera at 0.4x so it drifts slower than the world
+        parallaxLayer.position.x = cameraNode.position.x * 0.4
         let target: CGPoint
         if phase == .surface {
             target = CGPoint(x: 0, y: 40)
