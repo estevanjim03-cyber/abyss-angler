@@ -181,7 +181,10 @@ struct GameView: View {
                             .font(fredoka(15, "Bold")).foregroundStyle(.white)
                     }
                     .padding(.horizontal, 14).padding(.vertical, 8)
-                    .background(.black.opacity(0.55), in: Capsule())
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .background(Nautical.navy.opacity(0.6), in: Capsule())
+                    .overlay(Capsule().strokeBorder(Nautical.brassStroke, lineWidth: 1.5))
+                    .shadow(color: .black.opacity(0.4), radius: 8, y: 3)
                     .padding(.top, 52)
                     Spacer()
                 }
@@ -293,7 +296,11 @@ struct GameView: View {
                         .contentTransition(.numericText())
                         .symbolEffect(.bounce, value: state.bagCount)
                         .animation(.spring(duration: 0.3), value: state.bagCount)
-                        .padding(8).background(.black.opacity(0.35), in: Capsule())
+                        .padding(.horizontal, 14).padding(.vertical, 8)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .background(Nautical.navy.opacity(0.5), in: Capsule())
+                        .overlay(Capsule().strokeBorder(Nautical.brassStroke, lineWidth: 1.5))
+                        .shadow(color: .black.opacity(0.35), radius: 6, y: 2)
                     VStack(spacing: 1) {
                         Label("\(state.depthMeters)m", systemImage: "arrow.down")
                             .font(.title3.bold()).foregroundStyle(.white)
@@ -302,7 +309,12 @@ struct GameView: View {
                             .foregroundStyle(biomeName(state.depthMeters).1)
                             .animation(.easeInOut(duration: 0.4), value: biomeName(state.depthMeters).0)
                     }
-                    .padding(8).background(.black.opacity(0.35), in: Capsule())
+                    .padding(.horizontal, 14).padding(.vertical, 8)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .background(Nautical.navy.opacity(0.5), in: Capsule())
+                    // brass bezel with a soft biome-tinted glow
+                    .overlay(Capsule().strokeBorder(Nautical.brassStroke, lineWidth: 1.5))
+                    .shadow(color: biomeName(state.depthMeters).1.opacity(0.4), radius: 8)
                 }
             }
             if state.phase == .surface {
@@ -477,7 +489,9 @@ struct GameView: View {
             }
             .padding(Nautical.s2)
             .frame(maxWidth: 380)
-            .background(RoundedRectangle(cornerRadius: Nautical.panelRadius).fill(Nautical.panelFill))
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: Nautical.panelRadius))
+            .background(RoundedRectangle(cornerRadius: Nautical.panelRadius).fill(Nautical.panelFill.opacity(0.85)))
+            .shadow(color: .black.opacity(0.5), radius: 18, y: 8)
             .overlay(RoundedRectangle(cornerRadius: Nautical.panelRadius).strokeBorder(Nautical.brassStroke, lineWidth: 2))
         }
     }
@@ -559,7 +573,9 @@ struct GameView: View {
             }
             .padding(Nautical.s2)
             .frame(maxWidth: 420)
-            .background(RoundedRectangle(cornerRadius: Nautical.panelRadius).fill(Nautical.panelFill))
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: Nautical.panelRadius))
+            .background(RoundedRectangle(cornerRadius: Nautical.panelRadius).fill(Nautical.panelFill.opacity(0.85)))
+            .shadow(color: .black.opacity(0.5), radius: 18, y: 8)
             .overlay(RoundedRectangle(cornerRadius: Nautical.panelRadius).strokeBorder(Nautical.brassStroke, lineWidth: 2))
         }
     }
@@ -602,7 +618,9 @@ struct GameView: View {
                 }
             }
             .padding(Nautical.s3)
-            .background(RoundedRectangle(cornerRadius: Nautical.panelRadius).fill(Nautical.panelFill))
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: Nautical.panelRadius))
+            .background(RoundedRectangle(cornerRadius: Nautical.panelRadius).fill(Nautical.panelFill.opacity(0.85)))
+            .shadow(color: .black.opacity(0.5), radius: 18, y: 8)
             .overlay(RoundedRectangle(cornerRadius: Nautical.panelRadius).strokeBorder(Nautical.brassStroke, lineWidth: 2))
         }
     }

@@ -1208,9 +1208,9 @@ final class GameScene: SKScene {
 
     private func updateLine() {
         let path = CGMutablePath()
-        // line hangs from the rod tip, following the boat's bob
-        let rodTip = CGPoint(x: boat.position.x + rodTipOffset.x,
-                             y: boat.position.y + rodTipOffset.y)
+        // convert through the boat node so the line stays glued to the rod tip
+        // while the boat bobs AND rolls (raw offset math ignored zRotation)
+        let rodTip = convert(rodTipOffset, from: boat)
         let hookEye = CGPoint(x: hook.position.x, y: hook.position.y + 20)
 
         // trail of recent hook positions so loops in the dive path show in the line
@@ -1387,6 +1387,11 @@ final class GameScene: SKScene {
         fightsWon += 1
         sfx("sfx_win")
         haptic(.heavy)
+        // big-catch drama: shake, and a beat of slow-mo for legendary+
+        cameraNode.run(.sequence((0..<4).map { _ in
+            .moveBy(x: .random(in: -8...8), y: .random(in: -8...8), duration: 0.04)
+        }))
+        if sp.rarity >= .legendary { slowmoUntil = lastTime + 0.8 }
         endFight(state: state)
         snag(fish, species: sp, state: state)
         if hooked.count >= state.bagCapacity { startReel() }
@@ -1395,6 +1400,10 @@ final class GameScene: SKScene {
     private func loseFight(state: GameState) {
         sfx("sfx_snap")
         haptic(.rigid)
+        // line-snap kick
+        cameraNode.run(.sequence((0..<5).map { _ in
+            .moveBy(x: .random(in: -11...11), y: .random(in: -11...11), duration: 0.04)
+        }))
         if let fish = fightFish {
             fish.removeAction(forKey: "thrash")
             fish.zRotation = 0

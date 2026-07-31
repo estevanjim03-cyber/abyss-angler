@@ -152,14 +152,20 @@ struct CurrencyBadge: View {
             Text("\(amount)").font(fredoka(19, "Bold")).foregroundStyle(tint)
         }
         .padding(.horizontal, 12).padding(.vertical, 6)
-        .background(Nautical.panelFill, in: Capsule())
+        // brass plaque: dark navy well + top sheen so it reads as stamped metal
+        .background(
+            Capsule().fill(LinearGradient(colors: [Nautical.navyLight, Nautical.navy],
+                                          startPoint: .top, endPoint: .bottom))
+                .overlay(Capsule().fill(
+                    LinearGradient(colors: [.white.opacity(0.14), .clear],
+                                   startPoint: .top, endPoint: .center))))
         // bevel: bright top edge + dark bottom edge reads as an inset metal chip
         .overlay(
             Capsule().strokeBorder(
-                LinearGradient(colors: [.white.opacity(0.45), Nautical.brass.opacity(0.6), .black.opacity(0.4)],
+                LinearGradient(colors: [Nautical.brassBright.opacity(0.9), Nautical.brass.opacity(0.7), .black.opacity(0.5)],
                                startPoint: .top, endPoint: .bottom),
-                lineWidth: 1.5))
-        .shadow(color: .black.opacity(0.3), radius: 5, y: 2)
+                lineWidth: 2))
+        .shadow(color: .black.opacity(0.35), radius: 6, y: 3)
     }
 }
 
