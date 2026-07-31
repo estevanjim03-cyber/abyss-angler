@@ -367,13 +367,61 @@ final class GameScene: SKScene {
     private var rodTipOffset: CGPoint { layout.rodTip }
     var surfaceZoom: CGFloat { layout.surfaceZoom }
 
+    private func makeTriangle(size: CGSize, color: SKColor, stroke: SKColor, lineWidth: CGFloat) -> SKShapeNode {
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: 0, y: size.height))
+        path.addLine(to: CGPoint(x: size.width / 2, y: 0))
+        path.addLine(to: CGPoint(x: size.width, y: size.height))
+        path.closeSubpath()
+        let shape = SKShapeNode(path: path)
+        shape.fillColor = color
+        shape.strokeColor = stroke
+        shape.lineWidth = lineWidth
+        return shape
+    }
+
+    /// Themed vector boat used only if the boat PNG is missing: hull + cabin + mast + sail.
+    private func vectorBoatFallback(width w: CGFloat) -> SKNode {
+        let node = SKNode()
+        let wood = SKColor(red: 0.45, green: 0.3, blue: 0.16, alpha: 1)
+        let brass = SKColor(red: 0.78, green: 0.62, blue: 0.28, alpha: 1)
+        let hull = SKShapeNode(rectOf: CGSize(width: w, height: w * 0.22), cornerRadius: w * 0.06)
+        hull.fillColor = wood
+        hull.strokeColor = brass
+        hull.lineWidth = 2
+        node.addChild(hull)
+        let cabin = SKShapeNode(rectOf: CGSize(width: w * 0.32, height: w * 0.16), cornerRadius: w * 0.03)
+        cabin.fillColor = wood.withAlphaComponent(0.9)
+        cabin.strokeColor = brass
+        cabin.lineWidth = 1.5
+        cabin.position = CGPoint(x: -w * 0.1, y: w * 0.18)
+        node.addChild(cabin)
+        let mast = SKShapeNode(rectOf: CGSize(width: w * 0.02, height: w * 0.5))
+        mast.fillColor = brass
+        mast.strokeColor = .clear
+        mast.position = CGPoint(x: w * 0.1, y: w * 0.35)
+        node.addChild(mast)
+        let sail = makeTriangle(size: CGSize(width: w * 0.3, height: w * 0.4),
+                                color: SKColor(red: 0.96, green: 0.93, blue: 0.86, alpha: 1),
+                                stroke: brass, lineWidth: 1.5)
+        sail.position = CGPoint(x: w * 0.11, y: w * 0.22)
+        node.addChild(sail)
+        return node
+    }
+
     func rebuildBoat() {
         layout = Self.boatLayouts[state?.currentBoat ?? "boat_classic"] ?? layout
         boat.removeFromParent()
         boat = SKNode()
         let sprite = spriteOrPlaceholder(state?.currentBoat ?? "boat_classic", width: layout.width)
-        sprite.position = CGPoint(x: 0, y: layout.spriteY)
-        boat.addChild(sprite)
+        if sprite.texture == nil || SKTexture(imageNamed: state?.currentBoat ?? "boat_classic").size().width <= 1 {
+            let fallback = vectorBoatFallback(width: layout.width)
+            fallback.position = CGPoint(x: 0, y: layout.spriteY)
+            boat.addChild(fallback)
+        } else {
+            sprite.position = CGPoint(x: 0, y: layout.spriteY)
+            boat.addChild(sprite)
+        }
         // fishing rod mounted in the stern cockpit — art upgrades with the reel tier
         let tier = state?.levels[.reel] ?? 1
         var rod = spriteOrPlaceholder("rod_\(tier)", width: layout.rodWidth)
