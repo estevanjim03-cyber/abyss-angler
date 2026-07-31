@@ -430,32 +430,125 @@ final class GameScene: SKScene {
         return shape
     }
 
-    /// Themed vector boat used only if the boat PNG is missing: hull + cabin + mast + sail.
+    /// Themed vector boat used only if the boat PNG is missing.
+    /// Never renders in the shipped build (all boat PNGs are bundled) — kept believable, not pixel-perfect.
     private func vectorBoatFallback(width w: CGFloat) -> SKNode {
         let node = SKNode()
         let wood = SKColor(red: 0.45, green: 0.3, blue: 0.16, alpha: 1)
         let brass = SKColor(red: 0.78, green: 0.62, blue: 0.28, alpha: 1)
-        let hull = SKShapeNode(rectOf: CGSize(width: w, height: w * 0.22), cornerRadius: w * 0.06)
+        let navy = SKColor(red: 0.05, green: 0.12, blue: 0.19, alpha: 1)
+
+        // waterline shadow under the hull
+        let shadow = SKShapeNode(ellipseOf: CGSize(width: w * 1.05, height: w * 0.09))
+        shadow.fillColor = SKColor(white: 0, alpha: 0.25)
+        shadow.strokeColor = .clear
+        shadow.position = CGPoint(x: 0, y: -w * 0.13)
+        node.addChild(shadow)
+
+        // curved-bottom hull with brass trim
+        let hullPath = CGMutablePath()
+        hullPath.move(to: CGPoint(x: -w / 2, y: 0))
+        hullPath.addLine(to: CGPoint(x: w / 2, y: 0))
+        hullPath.addLine(to: CGPoint(x: w * 0.38, y: -w * 0.14))
+        hullPath.addQuadCurve(to: CGPoint(x: -w * 0.38, y: -w * 0.14),
+                              control: CGPoint(x: 0, y: -w * 0.24))
+        hullPath.closeSubpath()
+        let hull = SKShapeNode(path: hullPath)
         hull.fillColor = wood
         hull.strokeColor = brass
         hull.lineWidth = 2
         node.addChild(hull)
-        let cabin = SKShapeNode(rectOf: CGSize(width: w * 0.32, height: w * 0.16), cornerRadius: w * 0.03)
-        cabin.fillColor = wood.withAlphaComponent(0.9)
+        let trim = SKShapeNode(rectOf: CGSize(width: w, height: w * 0.02))
+        trim.fillColor = brass
+        trim.strokeColor = .clear
+        trim.position = CGPoint(x: 0, y: -w * 0.015)
+        node.addChild(trim)
+
+        // deck cabin with teal window
+        let cabin = SKShapeNode(rectOf: CGSize(width: w * 0.34, height: w * 0.17), cornerRadius: w * 0.03)
+        cabin.fillColor = wood.withAlphaComponent(0.95)
         cabin.strokeColor = brass
         cabin.lineWidth = 1.5
-        cabin.position = CGPoint(x: -w * 0.1, y: w * 0.18)
+        cabin.position = CGPoint(x: -w * 0.12, y: w * 0.09)
         node.addChild(cabin)
+        let window = SKShapeNode(rectOf: CGSize(width: w * 0.12, height: w * 0.08), cornerRadius: w * 0.015)
+        window.fillColor = SKColor(red: 0.31, green: 0.70, blue: 0.70, alpha: 1)
+        window.strokeColor = brass
+        window.lineWidth = 1
+        window.position = CGPoint(x: -w * 0.12, y: w * 0.1)
+        node.addChild(window)
+
+        // mast + cream sail
         let mast = SKShapeNode(rectOf: CGSize(width: w * 0.02, height: w * 0.5))
         mast.fillColor = brass
         mast.strokeColor = .clear
-        mast.position = CGPoint(x: w * 0.1, y: w * 0.35)
+        mast.position = CGPoint(x: w * 0.08, y: w * 0.3)
         node.addChild(mast)
         let sail = makeTriangle(size: CGSize(width: w * 0.3, height: w * 0.4),
                                 color: SKColor(red: 0.96, green: 0.93, blue: 0.86, alpha: 1),
                                 stroke: brass, lineWidth: 1.5)
-        sail.position = CGPoint(x: w * 0.11, y: w * 0.22)
+        sail.position = CGPoint(x: w * 0.09, y: w * 0.18)
         node.addChild(sail)
+
+        // brass rod holder + rod angled over the stern
+        let holder = SKShapeNode(rectOf: CGSize(width: w * 0.03, height: w * 0.06))
+        holder.fillColor = brass
+        holder.strokeColor = .clear
+        holder.position = CGPoint(x: w * 0.34, y: w * 0.03)
+        node.addChild(holder)
+        let fRod = SKShapeNode(rectOf: CGSize(width: w * 0.015, height: w * 0.34), cornerRadius: w * 0.007)
+        fRod.fillColor = brass
+        fRod.strokeColor = .clear
+        fRod.zRotation = -0.5 // tip out over the water
+        fRod.position = CGPoint(x: w * 0.40, y: w * 0.16)
+        node.addChild(fRod)
+
+        // hooded angler silhouette by the rod
+        let body = SKShapeNode(rectOf: CGSize(width: w * 0.08, height: w * 0.12), cornerRadius: w * 0.03)
+        body.fillColor = navy
+        body.strokeColor = .clear
+        body.position = CGPoint(x: w * 0.27, y: w * 0.07)
+        node.addChild(body)
+        let head = SKShapeNode(circleOfRadius: w * 0.035)
+        head.fillColor = navy
+        head.strokeColor = .clear
+        head.position = CGPoint(x: w * 0.27, y: w * 0.155)
+        node.addChild(head)
+        return node
+    }
+
+    /// Themed rod fallback: thin brass stick at the stern angle. Used only if rod_X.png is missing.
+    private func vectorRodFallback(width: CGFloat) -> SKSpriteNode {
+        let node = SKSpriteNode(color: .clear, size: CGSize(width: width, height: width * 1.4))
+        let stick = SKShapeNode(rectOf: CGSize(width: width * 0.06, height: width * 1.35), cornerRadius: width * 0.03)
+        stick.fillColor = SKColor(red: 0.78, green: 0.62, blue: 0.28, alpha: 1)
+        stick.strokeColor = SKColor(white: 0, alpha: 0.4)
+        stick.lineWidth = 1
+        stick.zRotation = -0.45
+        node.addChild(stick)
+        return node
+    }
+
+    /// Themed captain fallback: navy head + body silhouette with a brass rod detail.
+    private func vectorCaptainFallback(width: CGFloat) -> SKSpriteNode {
+        let navy = SKColor(red: 0.05, green: 0.12, blue: 0.19, alpha: 1)
+        let node = SKSpriteNode(color: .clear, size: CGSize(width: width, height: width * 1.6))
+        let body = SKShapeNode(rectOf: CGSize(width: width * 0.7, height: width * 0.9), cornerRadius: width * 0.25)
+        body.fillColor = navy
+        body.strokeColor = .clear
+        body.position = CGPoint(x: 0, y: -width * 0.2)
+        node.addChild(body)
+        let head = SKShapeNode(circleOfRadius: width * 0.28)
+        head.fillColor = navy
+        head.strokeColor = .clear
+        head.position = CGPoint(x: 0, y: width * 0.45)
+        node.addChild(head)
+        let rod = SKShapeNode(rectOf: CGSize(width: width * 0.06, height: width * 0.9), cornerRadius: width * 0.03)
+        rod.fillColor = SKColor(red: 0.78, green: 0.62, blue: 0.28, alpha: 1)
+        rod.strokeColor = .clear
+        rod.zRotation = -0.5
+        rod.position = CGPoint(x: width * 0.4, y: width * 0.1)
+        node.addChild(rod)
         return node
     }
 
@@ -475,14 +568,19 @@ final class GameScene: SKScene {
         // fishing rod mounted in the stern cockpit — art upgrades with the reel tier
         let tier = state?.levels[.reel] ?? 1
         var rod = spriteOrPlaceholder("rod_\(tier)", width: layout.rodWidth)
-        if rod.texture == nil { rod = spriteOrPlaceholder("rod", width: layout.rodWidth) }
+        if SKTexture(imageNamed: "rod_\(tier)").size().width <= 1 {
+            rod = vectorRodFallback(width: layout.rodWidth)
+        }
         rod.xScale = -abs(rod.xScale) // art tip points up-left; stern rod points up-right
         rod.position = layout.rodPos
         rod.zPosition = 1
         boat.addChild(rod)
 
         // captain planted next to the rod
-        let cap = spriteOrPlaceholder("captain", width: layout.capWidth)
+        var cap = spriteOrPlaceholder("captain", width: layout.capWidth)
+        if SKTexture(imageNamed: "captain").size().width <= 1 {
+            cap = vectorCaptainFallback(width: layout.capWidth)
+        }
         cap.position = layout.capPos
         cap.zPosition = 0.9
         boat.addChild(cap)
