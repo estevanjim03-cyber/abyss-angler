@@ -61,7 +61,8 @@ final class GameScene: SKScene {
         addChild(hook)
         rebuildHook()
 
-        line.strokeColor = SKColor(white: 0.15, alpha: 1)
+        // cream/brass nautical line, slightly translucent so it reads as thread
+        line.strokeColor = SKColor(red: 0.96, green: 0.93, blue: 0.86, alpha: 0.75)
         line.lineWidth = 2
         line.zPosition = 4
         addChild(line)
@@ -637,6 +638,7 @@ final class GameScene: SKScene {
         stunUntil = 0
         hook.position = CGPoint(x: boat.position.x + rodTipOffset.x, y: -20)
         hook.isHidden = false
+        hookTrail = []
         rebuildHook() // hook size tracks upgrade level
         state.joyX = 0
         state.joyY = 0
@@ -905,16 +907,42 @@ final class GameScene: SKScene {
         }
     }
 
+    private var hookTrail: [CGPoint] = []
+    private let maxTrailPoints = 50
+
     private func updateLine() {
         let path = CGMutablePath()
         // line hangs from the rod tip, following the boat's bob
         let rodTip = CGPoint(x: boat.position.x + rodTipOffset.x,
                              y: boat.position.y + rodTipOffset.y)
         let hookEye = CGPoint(x: hook.position.x, y: hook.position.y + 20)
+
+        // trail of recent hook positions so loops in the dive path show in the line
+        if phase == .diving {
+            if let last = hookTrail.last {
+                if hypot(hookEye.x - last.x, hookEye.y - last.y) > 8 { hookTrail.append(hookEye) }
+            } else {
+                hookTrail.append(hookEye)
+            }
+            if hookTrail.count > maxTrailPoints { hookTrail.removeFirst(hookTrail.count - maxTrailPoints) }
+        } else if !hookTrail.isEmpty {
+            // reeling/surface: collapse the trail smoothly from the oldest end
+            hookTrail.removeFirst(min(3, hookTrail.count))
+        }
+
         path.move(to: rodTip)
-        // slight sag so the line reads as rope, not a laser
-        let mid = CGPoint(x: (rodTip.x + hookEye.x) / 2, y: (rodTip.y + hookEye.y) / 2 - 24)
-        path.addQuadCurve(to: hookEye, control: mid)
+        if hookTrail.count > 1 {
+            // sag from the rod down to the start of the trail, then trace the actual path
+            let first = hookTrail[0]
+            let mid = CGPoint(x: (rodTip.x + first.x) / 2, y: (rodTip.y + first.y) / 2 - 24)
+            path.addQuadCurve(to: first, control: mid)
+            for p in hookTrail.dropFirst() { path.addLine(to: p) }
+            path.addLine(to: hookEye)
+        } else {
+            // slight sag so the line reads as rope, not a laser
+            let mid = CGPoint(x: (rodTip.x + hookEye.x) / 2, y: (rodTip.y + hookEye.y) / 2 - 24)
+            path.addQuadCurve(to: hookEye, control: mid)
+        }
         line.path = path
         line.isHidden = hook.isHidden
     }
