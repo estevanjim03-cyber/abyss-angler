@@ -756,7 +756,7 @@ struct SpriteImage: View {
             if let ui = UIImage(named: assetName) {
                 Image(uiImage: ui).resizable().scaledToFit()
             } else {
-                Image(systemName: "fish").resizable().scaledToFit().foregroundStyle(.secondary)
+                Image(uiImage: fallbackFishImage).resizable().scaledToFit().opacity(0.6)
             }
         }
         .frame(width: size, height: size)
