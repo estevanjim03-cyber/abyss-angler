@@ -87,14 +87,35 @@ struct PressButtonStyle: ButtonStyle {
 
 // MARK: - Currency glyphs + themed image fallback
 
+/// Themed navy fish silhouette drawn once — the fallback when an asset is missing (never an SF symbol).
+let fallbackFishImage: UIImage = {
+    let size = CGSize(width: 64, height: 40)
+    return UIGraphicsImageRenderer(size: size).image { _ in
+        let navy = UIColor(red: 0.09, green: 0.19, blue: 0.29, alpha: 1)
+        navy.setFill()
+        // body
+        UIBezierPath(ovalIn: CGRect(x: 8, y: 8, width: 40, height: 24)).fill()
+        // tail
+        let tail = UIBezierPath()
+        tail.move(to: CGPoint(x: 46, y: 20))
+        tail.addLine(to: CGPoint(x: 62, y: 6))
+        tail.addLine(to: CGPoint(x: 62, y: 34))
+        tail.close()
+        tail.fill()
+        // eye
+        UIColor(red: 0.96, green: 0.82, blue: 0.47, alpha: 1).setFill()
+        UIBezierPath(ovalIn: CGRect(x: 15, y: 15, width: 5, height: 5)).fill()
+    }
+}()
+
 /// Bundle image with a themed silhouette fallback (never a random SF symbol).
 func bundleImage(_ name: String) -> Image {
-    UIImage(named: name).map(Image.init(uiImage:)) ?? Image(systemName: "fish.fill")
+    Image(uiImage: UIImage(named: name) ?? fallbackFishImage)
 }
 
 /// Bundle image downscaled to text-glyph size for inline use in Text.
 func glyphImage(_ name: String, pt: CGFloat = 18) -> Image {
-    guard let ui = UIImage(named: name) else { return Image(systemName: "fish.fill") }
+    guard let ui = UIImage(named: name) else { return Image(uiImage: fallbackFishImage) }
     let scale = pt / max(ui.size.width, ui.size.height)
     let size = CGSize(width: ui.size.width * scale, height: ui.size.height * scale)
     let scaled = UIGraphicsImageRenderer(size: size).image { _ in

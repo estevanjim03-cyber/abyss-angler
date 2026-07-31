@@ -691,7 +691,53 @@ final class GameScene: SKScene {
             let beat = max(0.16, 0.45 - Double(sp.speed) / 500)
             node.run(.repeatForever(.animate(with: [f1, f2], timePerFrame: beat, resize: false, restore: true)))
         }
+
+        // rarity glow: epic+ get a soft pulsing halo in their rarity color
+        if sp.rarity >= .epic {
+            let tint: SKColor = switch sp.rarity {
+            case .epic: SKColor(red: 0.65, green: 0.35, blue: 0.9, alpha: 1)
+            case .legendary: SKColor(red: 0.96, green: 0.78, blue: 0.3, alpha: 1)
+            default: SKColor(red: 0.35, green: 0.9, blue: 0.9, alpha: 1) // mythic/boss
+            }
+            let glow = SKSpriteNode(texture: Self.glowTexture, size: CGSize(width: sp.size * 1.9, height: sp.size * 1.9))
+            glow.color = tint
+            glow.colorBlendFactor = 1
+            glow.blendMode = .add
+            glow.alpha = 0.35
+            glow.zPosition = -0.1
+            node.addChild(glow)
+            glow.run(.repeatForever(.sequence([
+                .fadeAlpha(to: 0.5, duration: 1.1), .fadeAlpha(to: 0.25, duration: 1.1),
+            ])))
+        }
+
+        // bioluminescent dot for deep dwellers — reads as anglerfish lure in the dark
+        if sp.minDepth >= 500 {
+            let dot = SKSpriteNode(texture: Self.glowTexture, size: CGSize(width: 14, height: 14))
+            dot.color = SKColor(red: 0.5, green: 0.95, blue: 0.9, alpha: 1)
+            dot.colorBlendFactor = 1
+            dot.blendMode = .add
+            dot.position = CGPoint(x: sp.size * 0.45, y: sp.size * 0.12)
+            node.addChild(dot)
+            dot.run(.repeatForever(.sequence([
+                .fadeAlpha(to: 1, duration: 0.7), .fadeAlpha(to: 0.4, duration: 0.7),
+            ])))
+        }
     }
+
+    /// Shared soft radial glow texture (rendered once).
+    private static let glowTexture: SKTexture = {
+        let size = CGSize(width: 64, height: 64)
+        let img = UIGraphicsImageRenderer(size: size).image { ctx in
+            let grad = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                                  colors: [UIColor(white: 1, alpha: 0.9).cgColor,
+                                           UIColor(white: 1, alpha: 0).cgColor] as CFArray,
+                                  locations: [0, 1])!
+            ctx.cgContext.drawRadialGradient(grad, startCenter: CGPoint(x: 32, y: 32), startRadius: 0,
+                                             endCenter: CGPoint(x: 32, y: 32), endRadius: 32, options: [])
+        }
+        return SKTexture(image: img)
+    }()
 
     private func populateHazards() {
         // jellyfish 130–370m, mines 380–990m
@@ -928,6 +974,7 @@ final class GameScene: SKScene {
         arc.timingMode = .easeIn
         fish.run(arc)
         catchBurst(at: hook.position)
+        catchPop(at: hook.position, species: sp)
         hooked.append((fish, sp))
         run(.sequence([.wait(forDuration: 0.55), .run { [weak state] in
             state?.bagCount += 1 // pop the counter when the fish lands in the bag
@@ -939,6 +986,37 @@ final class GameScene: SKScene {
             run(.sequence([.wait(forDuration: 4), .run { [weak self] in
                 self?.spawnFish(sp)
             }]))
+        }
+    }
+
+    /// "CATCH!" pop + coin shower at the hook; rare+ get bigger text and more coins.
+    private func catchPop(at p: CGPoint, species sp: FishSpecies) {
+        let label = SKLabelNode(text: "CATCH!")
+        label.fontName = "Fredoka-Bold"
+        label.fontSize = sp.rarity >= .rare ? 34 : 24
+        label.fontColor = SKColor(red: 0.96, green: 0.82, blue: 0.47, alpha: 1)
+        label.position = CGPoint(x: p.x, y: p.y + 40)
+        label.zPosition = 30
+        label.setScale(0.3)
+        addChild(label)
+        label.run(.sequence([
+            .group([.scale(to: 1.0, duration: 0.18), .moveBy(x: 0, y: 22, duration: 0.6)]),
+            .fadeOut(withDuration: 0.25),
+            .removeFromParent(),
+        ]))
+        let coins = sp.rarity >= .rare ? 8 : 4
+        for _ in 0..<coins {
+            let c = SKShapeNode(circleOfRadius: .random(in: 3...5))
+            c.fillColor = SKColor(red: 0.96, green: 0.82, blue: 0.47, alpha: 1)
+            c.strokeColor = SKColor(red: 0.78, green: 0.62, blue: 0.28, alpha: 1)
+            c.position = p
+            c.zPosition = 29
+            addChild(c)
+            c.run(.sequence([
+                .group([.moveBy(x: .random(in: -50...50), y: .random(in: 30...80), duration: 0.5),
+                        .fadeOut(withDuration: 0.5)]),
+                .removeFromParent(),
+            ]))
         }
     }
 

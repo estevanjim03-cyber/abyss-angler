@@ -200,12 +200,8 @@ struct GameView: View {
         // full-scene screens get no system chrome; list sheets lose the grabber
         .fullScreenCover(isPresented: $showShop) { ShopView(state: state, scene: scene) }
         .fullScreenCover(isPresented: $showAquarium) { AquariumView(state: state) }
-        .sheet(isPresented: $showInventory) {
-            InventoryView(state: state).presentationDragIndicator(.hidden)
-        }
-        .sheet(isPresented: $showDex) {
-            DexView(state: state).presentationDragIndicator(.hidden)
-        }
+        .fullScreenCover(isPresented: $showInventory) { InventoryView(state: state) }
+        .fullScreenCover(isPresented: $showDex) { DexView(state: state) }
         .statusBarHidden()
     }
 
