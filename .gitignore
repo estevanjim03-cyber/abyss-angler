@@ -1,0 +1,10 @@
+# Xcode / build
+DerivedData/
+build/
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+.DS_Store
+
+# xcodegen output is reproducible from project.yml
+FishingGame.xcodeproj/
