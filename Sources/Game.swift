@@ -246,6 +246,12 @@ struct SaveData: Codable {
     var lastLoginDay: String?
     var claimedAchievements: [String]?
     var records: [String: Int]?
+    // optional so pre-modular-boat saves still decode
+    var currentHullId: String?
+    var currentRodId: String?
+    var currentCaptainId: String?
+    var currentDeckId: String?
+    var currentDetailId: String?
 }
 
 // MARK: - Bait
@@ -321,6 +327,22 @@ final class GameState {
     var soundOn = true
     var hapticsOn = true
     var soundVolume: Double = 0.8
+
+    // modular boat: nil = derive from the owned boat / reel tier
+    var currentHullId: String? = nil
+    var currentRodId: String? = nil
+    var currentCaptainId: String? = nil
+    var currentDeckId: String? = nil
+    var currentDetailId: String? = nil
+
+    /// Effective hull: explicit override, else mapped from the equipped shop boat.
+    var effectiveHullId: String { currentHullId ?? hullId(forBoat: currentBoat) }
+
+    func setHull(to id: String) { currentHullId = id; save() }
+    func upgradeRod(to id: String) { currentRodId = id; save() }
+    func setCaptain(to id: String) { currentCaptainId = id; save() }
+    func setDeck(to id: String) { currentDeckId = id; save() }
+    func setDetail(to id: String?) { currentDetailId = id; save() }
 
     // bait
     var baitCounts: [String: Int] = [:]
@@ -706,7 +728,10 @@ final class GameState {
                             soundVolume: soundVolume,
                             baitCounts: baitCounts, equippedBait: equippedBait,
                             loginStreak: loginStreak, lastLoginDay: lastLoginDay,
-                            claimedAchievements: Array(claimedAchievements), records: records)
+                            claimedAchievements: Array(claimedAchievements), records: records,
+                            currentHullId: currentHullId, currentRodId: currentRodId,
+                            currentCaptainId: currentCaptainId, currentDeckId: currentDeckId,
+                            currentDetailId: currentDetailId)
         try? JSONEncoder().encode(data).write(to: Self.saveURL)
     }
 
@@ -741,6 +766,11 @@ final class GameState {
         lastLoginDay = data.lastLoginDay ?? ""
         claimedAchievements = Set(data.claimedAchievements ?? [])
         records = data.records ?? [:]
+        currentHullId = data.currentHullId
+        currentRodId = data.currentRodId
+        currentCaptainId = data.currentCaptainId
+        currentDeckId = data.currentDeckId
+        currentDetailId = data.currentDetailId
         refreshQuests()
     }
 }
