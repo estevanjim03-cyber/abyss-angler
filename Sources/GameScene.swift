@@ -608,7 +608,52 @@ final class GameScene: SKScene {
         } else {
             sprite.position = CGPoint(x: 0, y: layout.spriteY)
             boat.addChild(sprite)
+
+            // water reflection: flipped, faded hull with a slow ripple
+            let reflection = SKSpriteNode(texture: sprite.texture, size: sprite.size)
+            reflection.yScale = -0.7
+            reflection.alpha = 0.13
+            reflection.position = CGPoint(x: 0, y: -layout.spriteY - sprite.size.height * 0.55)
+            reflection.zPosition = -0.5
+            boat.addChild(reflection)
+            reflection.run(.repeatForever(.sequence([
+                .group([.scaleX(to: 1.03, duration: 1.6), .fadeAlpha(to: 0.09, duration: 1.6)]),
+                .group([.scaleX(to: 1.0, duration: 1.6), .fadeAlpha(to: 0.13, duration: 1.6)]),
+            ])))
         }
+
+        // soft hull shadow at the waterline, breathing with the bob
+        let hullShadow = SKShapeNode(ellipseOf: CGSize(width: layout.width * 0.9, height: layout.width * 0.07))
+        hullShadow.fillColor = SKColor(white: 0, alpha: 0.28)
+        hullShadow.strokeColor = .clear
+        hullShadow.position = CGPoint(x: 0, y: -6)
+        hullShadow.zPosition = -0.4
+        boat.addChild(hullShadow)
+        hullShadow.run(.repeatForever(.sequence([
+            .group([.scaleX(to: 1.06, duration: 1.2), .fadeAlpha(to: 0.2, duration: 1.2)]),
+            .group([.scaleX(to: 1.0, duration: 1.2), .fadeAlpha(to: 0.28, duration: 1.2)]),
+        ])))
+
+        // bow spray: little white droplets kicked up while the boat rocks at the surface
+        boat.run(.repeatForever(.sequence([
+            .wait(forDuration: 0.9, withRange: 0.5),
+            .run { [weak self, weak boat] in
+                guard let self, let boat, self.phase == .surface else { return }
+                let bowX = self.layout.width * 0.48 * (Bool.random() ? 1 : -1)
+                for _ in 0..<Int.random(in: 2...4) {
+                    let drop = SKShapeNode(circleOfRadius: .random(in: 1.5...3))
+                    drop.fillColor = SKColor(white: 1, alpha: 0.55)
+                    drop.strokeColor = .clear
+                    drop.position = CGPoint(x: bowX + .random(in: -10...10), y: 2)
+                    boat.addChild(drop)
+                    drop.run(.sequence([
+                        .group([.moveBy(x: .random(in: -14...14), y: .random(in: 10...26), duration: 0.35),
+                                .fadeOut(withDuration: 0.35)]),
+                        .removeFromParent(),
+                    ]))
+                }
+            },
+        ])))
         // fishing rod mounted in the stern cockpit — art upgrades with the reel tier
         let tier = state?.levels[.reel] ?? 1
         var rod = spriteOrPlaceholder("rod_\(tier)", width: layout.rodWidth)

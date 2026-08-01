@@ -3,14 +3,16 @@ import SwiftUI
 // MARK: - Design system: single source of truth for color, type, spacing.
 
 enum Nautical {
-    // palette
-    static let navy = Color(red: 0.05, green: 0.12, blue: 0.19)        // #0B304D family
-    static let navyLight = Color(red: 0.09, green: 0.19, blue: 0.29)
-    static let brass = Color(red: 0.78, green: 0.62, blue: 0.28)
-    static let brassBright = Color(red: 0.96, green: 0.82, blue: 0.47) // #F6D477 family
-    static let cream = Color(red: 0.96, green: 0.93, blue: 0.86)
-    static let danger = Color(red: 0.85, green: 0.25, blue: 0.2)
-    static let success = Color(red: 0.15, green: 0.55, blue: 0.3)
+    // mature palette: muted navy, warm wood, aged brass, parchment cream, desaturated teal
+    static let navy = Color(red: 0.10, green: 0.18, blue: 0.21)        // #1A2E35
+    static let navyLight = Color(red: 0.15, green: 0.25, blue: 0.29)
+    static let wood = Color(red: 0.48, green: 0.36, blue: 0.28)        // #7A5C48
+    static let brass = Color(red: 0.78, green: 0.61, blue: 0.37)       // #C89B5E
+    static let brassBright = Color(red: 0.88, green: 0.73, blue: 0.50)
+    static let cream = Color(red: 0.95, green: 0.92, blue: 0.83)       // #F2EAD3
+    static let teal = Color(red: 0.37, green: 0.54, blue: 0.53)        // #5E8A87
+    static let danger = Color(red: 0.72, green: 0.28, blue: 0.23)      // muted, not fire-truck
+    static let success = Color(red: 0.30, green: 0.50, blue: 0.36)
 
     // gold/brass accents pulled from the reference art
     static let copper = Color(red: 0.82, green: 0.55, blue: 0.27)  // #D18D46
@@ -36,9 +38,22 @@ enum Nautical {
     static let panelRadius: CGFloat = 18
 }
 
-// MARK: - Game font (Fredoka, registered at runtime — no plist entry needed)
+// MARK: - Game fonts
+// UI text: refined serif (system New York) for the mature look.
+// Big moments (titles, CATCH!, DIVE): Fredoka stays for punch.
 
 func fredoka(_ size: CGFloat, _ weight: String = "SemiBold") -> Font {
+    let w: Font.Weight = switch weight {
+    case "Bold": .bold
+    case "Medium": .medium
+    case "Light": .light
+    default: .semibold
+    }
+    return .system(size: size, weight: w, design: .serif)
+}
+
+/// Display font for hero moments only.
+func displayFont(_ size: CGFloat, _ weight: String = "Bold") -> Font {
     .custom("Fredoka-\(weight)", size: size)
 }
 
@@ -58,12 +73,12 @@ struct GameText: ViewModifier {
         ZStack {
             ForEach(0..<4, id: \.self) { i in
                 content
-                    .font(fredoka(size, weight))
+                    .font(displayFont(size, weight))
                     .foregroundStyle(Color.black.opacity(0.85))
                     .offset(offsets[i])
             }
             content
-                .font(fredoka(size, weight))
+                .font(displayFont(size, weight))
                 .foregroundStyle(color)
         }
     }

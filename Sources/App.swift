@@ -284,142 +284,152 @@ struct GameView: View {
         }
     }
 
+    // MARK: instrument-panel HUD
+
     private var hud: some View {
-        VStack {
-            HStack {
-                CurrencyBadge(icon: "icon_sanddollar", amount: state.coins, tint: Color(red: 0.96, green: 0.87, blue: 0.6))
-                CurrencyBadge(icon: "icon_diamond", amount: state.gems, tint: .cyan)
-                Spacer()
-                if state.phase == .diving || state.phase == .reeling || state.phase == .fighting {
-                    Label("\(state.bagCount)/\(state.bagCapacity)", systemImage: "bag.fill")
-                        .font(.title3.bold()).foregroundStyle(.white)
-                        .contentTransition(.numericText())
-                        .symbolEffect(.bounce, value: state.bagCount)
-                        .animation(.spring(duration: 0.3), value: state.bagCount)
-                        .padding(.horizontal, 14).padding(.vertical, 8)
-                        .background(.ultraThinMaterial, in: Capsule())
-                        .background(Nautical.navy.opacity(0.5), in: Capsule())
-                        .overlay(Capsule().strokeBorder(Nautical.brassStroke, lineWidth: 1.5))
-                        .shadow(color: .black.opacity(0.35), radius: 6, y: 2)
-                    VStack(spacing: 1) {
-                        Label("\(state.depthMeters)m", systemImage: "arrow.down")
-                            .font(.title3.bold()).foregroundStyle(.white)
-                        Text(biomeName(state.depthMeters).0)
-                            .font(fredoka(11, "Bold"))
-                            .foregroundStyle(biomeName(state.depthMeters).1)
-                            .animation(.easeInOut(duration: 0.4), value: biomeName(state.depthMeters).0)
-                    }
-                    .padding(.horizontal, 14).padding(.vertical, 8)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .background(Nautical.navy.opacity(0.5), in: Capsule())
-                    // brass bezel with a soft biome-tinted glow
-                    .overlay(Capsule().strokeBorder(Nautical.brassStroke, lineWidth: 1.5))
-                    .shadow(color: biomeName(state.depthMeters).1.opacity(0.4), radius: 8)
-                }
-            }
+        VStack(spacing: 0) {
+            topInstrumentBar
             if state.phase == .surface {
                 HStack {
                     questChip
                     Spacer()
                 }
-                .padding(.top, 4)
-                HStack {
-                    VStack(spacing: 10) {
-                        Button { showSettings = true } label: { sideIcon("icon_settings") }
-                        Button { showDex = true } label: {
-                            sideIcon("icon_dex")
-                                .overlay(alignment: .topTrailing) {
-                                    if dexMilestones.contains(where: { state.canClaimChest($0) }) {
-                                        Circle().fill(.red).frame(width: 12, height: 12)
-                                    }
-                                }
-                        }
-                        Button { showTrophies = true } label: {
-                            Text("🏆").font(.system(size: 26))
-                                .frame(width: 46, height: 46)
-                                .background(Nautical.panelFill, in: RoundedRectangle(cornerRadius: 12))
-                                .overlay(RoundedRectangle(cornerRadius: 12)
-                                    .strokeBorder(Nautical.brassStroke, lineWidth: 1.5))
-                                .overlay(alignment: .topTrailing) {
-                                    if !state.unclaimedAchievements.isEmpty {
-                                        Circle().fill(.red).frame(width: 12, height: 12)
-                                    }
-                                }
-                        }
-                    }
-                    Spacer()
-                }
-                .padding(.top, 8)
+                .padding(.top, 6)
             }
             Spacer()
-            HStack(spacing: 12) {
-                Spacer()
-                switch state.phase {
-                case .surface:
-                    baitChip
-                    Button { showAquarium = true } label: {
-                        hudButton("Aquarium", icon: "icon_aquarium")
-                    }
-                    Button { showInventory = true } label: {
-                        hudButton("Catch", icon: "icon_catch")
-                    }
-                    Button { showShop = true } label: {
-                        hudButton("Shop", icon: "icon_shop")
-                    }
-                    Button { scene.startDive() } label: {
-                        Text("DIVE")
-                            .gameText(30, weight: "Bold")
-                            .kerning(2)
-                            .padding(.horizontal, 30).padding(.vertical, 14)
-                            .background(
-                                Capsule().fill(
-                                    LinearGradient(colors: [Color(red: 0.0, green: 0.48, blue: 0.85),
-                                                            Color(red: 0.0, green: 0.72, blue: 0.67)],
-                                                   startPoint: .topLeading, endPoint: .bottomTrailing))
-                            )
-                            .overlay(Capsule().strokeBorder(Nautical.brassStroke, lineWidth: 2.5))
-                            .shadow(color: Color(red: 0, green: 0.5, blue: 0.7).opacity(0.6), radius: 10, y: 4)
-                    }
-                case .diving:
+            switch state.phase {
+            case .surface:
+                controlDeck
+            case .diving:
+                HStack {
+                    Spacer()
                     Button { scene.startReel() } label: {
                         VStack(spacing: 2) {
                             bundleImage("reel_crank")
                                 .resizable().scaledToFit().frame(height: 74)
                                 .shadow(color: .black.opacity(0.45), radius: 6, y: 3)
                             Text("REEL IN")
-                                .font(.caption.weight(.heavy)).kerning(1)
-                                .foregroundStyle(.white)
+                                .font(fredoka(12, "Bold")).kerning(1)
+                                .foregroundStyle(Nautical.cream)
                                 .shadow(color: .black.opacity(0.6), radius: 2)
                         }
                     }
-                case .fighting, .reeling, .summary:
-                    EmptyView()
                 }
+            case .fighting, .reeling, .summary:
+                EmptyView()
             }
         }
         .padding()
     }
 
-    private func sideIcon(_ asset: String) -> some View {
-        bundleImage(asset)
-            .resizable().scaledToFit()
-            .padding(6)
-            .frame(width: 50, height: 50)
-            .background(Nautical.panelFill, in: RoundedRectangle(cornerRadius: 13))
-            .overlay(RoundedRectangle(cornerRadius: 13).strokeBorder(Nautical.brassStroke, lineWidth: 2))
-            .shadow(color: .black.opacity(0.35), radius: 5, y: 3)
+    /// Brass-framed glass bar: currency plaques, and depth gauge + biome while diving.
+    private var topInstrumentBar: some View {
+        HStack(spacing: Nautical.s2) {
+            CurrencyBadge(icon: "icon_sanddollar", amount: state.coins, tint: Nautical.brassBright)
+            CurrencyBadge(icon: "icon_diamond", amount: state.gems, tint: Nautical.teal)
+            Spacer()
+            if state.phase == .diving || state.phase == .reeling || state.phase == .fighting {
+                Label("\(state.bagCount)/\(state.bagCapacity)", systemImage: "bag.fill")
+                    .font(fredoka(17, "Bold")).foregroundStyle(Nautical.cream)
+                    .contentTransition(.numericText())
+                    .symbolEffect(.bounce, value: state.bagCount)
+                    .animation(.spring(duration: 0.3), value: state.bagCount)
+                // biome glass chip
+                Text(biomeName(state.depthMeters).0)
+                    .font(fredoka(11, "Bold"))
+                    .foregroundStyle(biomeName(state.depthMeters).1)
+                    .padding(.horizontal, 10).padding(.vertical, 5)
+                    .background(biomeName(state.depthMeters).1.opacity(0.12), in: Capsule())
+                    .overlay(Capsule().strokeBorder(biomeName(state.depthMeters).1.opacity(0.5), lineWidth: 1))
+                    .animation(.easeInOut(duration: 0.4), value: biomeName(state.depthMeters).0)
+                // depth gauge: big numerals, small unit
+                HStack(alignment: .firstTextBaseline, spacing: 2) {
+                    Text("\(state.depthMeters)")
+                        .font(fredoka(26, "Bold")).foregroundStyle(Nautical.cream)
+                        .contentTransition(.numericText())
+                    Text("m").font(fredoka(13)).foregroundStyle(Nautical.cream.opacity(0.6))
+                }
+            }
+        }
+        .padding(.horizontal, Nautical.s2).padding(.vertical, 10)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: Nautical.cornerRadius))
+        .background(RoundedRectangle(cornerRadius: Nautical.cornerRadius)
+            .fill(LinearGradient(colors: [Nautical.navyLight.opacity(0.85), Nautical.navy.opacity(0.9)],
+                                 startPoint: .top, endPoint: .bottom)))
+        .overlay(RoundedRectangle(cornerRadius: Nautical.cornerRadius)
+            .strokeBorder(Nautical.brassStroke, lineWidth: 2))
+        .shadow(color: .black.opacity(0.5), radius: 12, y: 5)
     }
 
-    private func hudButton(_ title: String, icon: String) -> some View {
-        VStack(spacing: 2) {
-            bundleImage(icon)
-                .resizable().scaledToFit().frame(height: 38)
-            Text(title).gameText(13)
+    /// Wooden control deck: instrument toggles + the DIVE capstan.
+    private var controlDeck: some View {
+        HStack(spacing: Nautical.s1) {
+            instrumentToggle("icon_settings", "") { showSettings = true }
+            instrumentToggle("icon_dex", "Dex", badge: dexMilestones.contains(where: { state.canClaimChest($0) })) { showDex = true }
+            instrumentToggle("crate", "Trophies", badge: !state.unclaimedAchievements.isEmpty) { showTrophies = true }
+            Spacer()
+            baitChip
+            instrumentToggle("icon_aquarium", "Aquarium") { showAquarium = true }
+            instrumentToggle("icon_catch", "Catch") { showInventory = true }
+            instrumentToggle("icon_shop", "Shop") { showShop = true }
+            diveCapstan
         }
-        .padding(.horizontal, 12).padding(.vertical, 7)
-        .background(Nautical.panelFill, in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Nautical.brassStroke, lineWidth: 2))
-        .shadow(color: .black.opacity(0.35), radius: 5, y: 3)
+        .padding(.horizontal, Nautical.s2).padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: Nautical.panelRadius)
+                .fill(LinearGradient(colors: [Nautical.wood.opacity(0.9), Nautical.wood.opacity(0.65), Nautical.navy.opacity(0.9)],
+                                     startPoint: .top, endPoint: .bottom))
+                .overlay(RoundedRectangle(cornerRadius: Nautical.panelRadius)
+                    .fill(LinearGradient(colors: [.white.opacity(0.1), .clear], startPoint: .top, endPoint: .center))))
+        .overlay(RoundedRectangle(cornerRadius: Nautical.panelRadius)
+            .strokeBorder(Nautical.brassStroke, lineWidth: 2))
+        .shadow(color: .black.opacity(0.55), radius: 14, y: 6)
+    }
+
+    /// Square instrument toggle: icon on an inset navy well with brass rim.
+    private func instrumentToggle(_ icon: String, _ title: String, badge: Bool = false, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 2) {
+                bundleImage(icon)
+                    .resizable().scaledToFit().frame(height: title.isEmpty ? 30 : 32)
+                if !title.isEmpty {
+                    Text(title).font(fredoka(10, "Bold")).foregroundStyle(Nautical.cream.opacity(0.85))
+                }
+            }
+            .padding(.horizontal, 9).padding(.vertical, 6)
+            .frame(minWidth: 52)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(LinearGradient(colors: [Nautical.navyLight, Nautical.navy], startPoint: .top, endPoint: .bottom))
+                    .overlay(RoundedRectangle(cornerRadius: 12)
+                        .fill(LinearGradient(colors: [.white.opacity(0.12), .clear], startPoint: .top, endPoint: .center))))
+            .overlay(RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(LinearGradient(colors: [Nautical.brassBright.opacity(0.8), Nautical.brass.opacity(0.6), .black.opacity(0.4)],
+                                             startPoint: .top, endPoint: .bottom), lineWidth: 1.5))
+            .shadow(color: .black.opacity(0.4), radius: 4, y: 2)
+            .overlay(alignment: .topTrailing) {
+                if badge { Circle().fill(Nautical.danger).frame(width: 11, height: 11).offset(x: 2, y: -2) }
+            }
+        }
+    }
+
+    /// Round brass capstan DIVE button.
+    private var diveCapstan: some View {
+        Button { scene.startDive() } label: {
+            Text("DIVE")
+                .gameText(22, weight: "Bold")
+                .kerning(1.5)
+                .frame(width: 88, height: 88)
+                .background(
+                    Circle().fill(RadialGradient(colors: [Nautical.brassBright, Nautical.brass, Nautical.wood],
+                                                 center: .init(x: 0.4, y: 0.3), startRadius: 4, endRadius: 60)))
+                .overlay(Circle().strokeBorder(Nautical.brassStroke, lineWidth: 3))
+                // rope groove ring
+                .overlay(Circle().inset(by: 7)
+                    .stroke(Nautical.navy.opacity(0.35), style: StrokeStyle(lineWidth: 2, dash: [5, 4])))
+                .shadow(color: Nautical.brass.opacity(0.5), radius: 12, y: 4)
+                .shadow(color: .black.opacity(0.5), radius: 8, y: 5)
+        }
     }
 
     // MARK: tension fight
@@ -529,7 +539,7 @@ struct GameView: View {
                             Button {
                                 withAnimation(.spring(duration: 0.4)) { crateDrops = state.openCrate() }
                             } label: {
-                                (Text("20 ") + gemT).font(fredoka(13, "Bold")).foregroundStyle(.cyan)
+                                (Text("20 ") + gemT).font(fredoka(13, "Bold")).foregroundStyle(Nautical.teal)
                                     .padding(.horizontal, 10).padding(.vertical, 6)
                                     .background(Nautical.navy, in: Capsule())
                                     .overlay(Capsule().strokeBorder(Nautical.brass.opacity(0.6), lineWidth: 1))
@@ -630,7 +640,7 @@ struct GameView: View {
         switch m {
         case ..<250: return ("REEF", Nautical.sand)
         case ..<500: return ("KELP FOREST", .green)
-        case ..<800: return ("ABYSS", .cyan)
+        case ..<800: return ("ABYSS", Nautical.teal)
         default:     return ("TRENCH", Nautical.danger)
         }
     }
@@ -652,11 +662,11 @@ struct GameView: View {
                 HStack(spacing: 12) {
                     // catch progress column
                     VStack(spacing: 4) {
-                        Text("\(Int(state.fightProgress * 100))%").gameText(13, color: .cyan)
+                        Text("\(Int(state.fightProgress * 100))%").gameText(13, color: Nautical.teal)
                         GeometryReader { _ in
                             ZStack(alignment: .bottom) {
                                 Capsule().fill(.white.opacity(0.12))
-                                Capsule().fill(LinearGradient(colors: [.cyan, .blue], startPoint: .bottom, endPoint: .top))
+                                Capsule().fill(LinearGradient(colors: [Nautical.teal, Nautical.navyLight], startPoint: .bottom, endPoint: .top))
                                     .frame(height: max(6, barH * state.fightProgress))
                                     .animation(.linear(duration: 0.08), value: state.fightProgress)
                             }
@@ -718,7 +728,7 @@ struct GameView: View {
         VStack(spacing: 12) {
             Text("Haul!").font(.largeTitle.bold())
             if state.lastGemsWon > 0 {
-                (Text("+\(state.lastGemsWon) ") + gemT).font(.title2.bold()).foregroundStyle(.cyan)
+                (Text("+\(state.lastGemsWon) ") + gemT).font(.title2.bold()).foregroundStyle(Nautical.teal)
             }
             if state.lastHaul.isEmpty {
                 Text("Nothing this time…").foregroundStyle(.secondary)
@@ -908,7 +918,7 @@ struct AquariumView: View {
                     Button { state.upgradeAquarium() } label: {
                         aquaPanel {
                             (Text("+Slot \(state.aquariumUpgradeCost) ") + gemT)
-                                .font(fredoka(15, "Bold")).foregroundStyle(.cyan)
+                                .font(fredoka(15, "Bold")).foregroundStyle(Nautical.teal)
                         }
                     }
                     .disabled(state.gems < state.aquariumUpgradeCost)
@@ -1259,7 +1269,7 @@ struct ShopView: View {
                 // header: title + currencies + close
                 HStack {
                     CurrencyBadge(icon: "icon_sanddollar", amount: state.coins, tint: Color(red: 0.96, green: 0.87, blue: 0.6))
-                    CurrencyBadge(icon: "icon_diamond", amount: state.gems, tint: .cyan)
+                    CurrencyBadge(icon: "icon_diamond", amount: state.gems, tint: Nautical.teal)
                     Spacer()
                     Text("SHOP").gameText(30, weight: "Bold").kerning(3)
                     Spacer()
@@ -1402,7 +1412,7 @@ struct ShopView: View {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(item.name).gameText(16, weight: "Bold")
                             if item.cost > 0 && !owned.contains(item.id) {
-                                (Text("\(item.cost) ") + gemT).font(fredoka(14)).foregroundStyle(.cyan)
+                                (Text("\(item.cost) ") + gemT).font(fredoka(14)).foregroundStyle(Nautical.teal)
                             }
                         }
                         Spacer()
