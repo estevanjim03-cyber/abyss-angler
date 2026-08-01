@@ -113,6 +113,9 @@ struct GameView: View {
     @State private var showTrophies = false
     @State private var crateDrops: [(String, Int)]? = nil
 
+    enum Drawer { case left, right }
+    @State private var openDrawer: Drawer? = nil
+
     var body: some View {
         ZStack {
             SpriteView(scene: scene)
@@ -284,106 +287,208 @@ struct GameView: View {
         }
     }
 
-    // MARK: instrument-panel HUD
+    // MARK: open-scene HUD with side drawers
 
     private var hud: some View {
-        VStack(spacing: 0) {
-            topInstrumentBar
-            if state.phase == .surface {
-                HStack {
-                    questChip
+        ZStack {
+            VStack(spacing: 0) {
+                // corner currency plaques only — scene stays open
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        CurrencyBadge(icon: "icon_sanddollar", amount: state.coins, tint: Nautical.brassBright)
+                        if state.phase == .surface { questChip }
+                    }
                     Spacer()
+                    if state.phase == .diving || state.phase == .reeling || state.phase == .fighting {
+                        diveGauge
+                    }
+                    Spacer()
+                    CurrencyBadge(icon: "icon_diamond", amount: state.gems, tint: Nautical.teal)
                 }
-                .padding(.top, 6)
+                Spacer()
+                switch state.phase {
+                case .surface:
+                    ZStack {
+                        diveCapstan
+                        HStack {
+                            Spacer()
+                            bottomDock
+                        }
+                    }
+                case .diving:
+                    HStack {
+                        Spacer()
+                        Button { scene.startReel() } label: {
+                            VStack(spacing: 2) {
+                                bundleImage("reel_crank")
+                                    .resizable().scaledToFit().frame(height: 74)
+                                    .shadow(color: .black.opacity(0.45), radius: 6, y: 3)
+                                Text("REEL IN")
+                                    .font(fredoka(12, "Bold")).kerning(1)
+                                    .foregroundStyle(Nautical.cream)
+                                    .shadow(color: .black.opacity(0.6), radius: 2)
+                            }
+                        }
+                    }
+                case .fighting, .reeling, .summary:
+                    EmptyView()
+                }
             }
-            Spacer()
-            switch state.phase {
-            case .surface:
-                controlDeck
-            case .diving:
-                HStack {
-                    Spacer()
-                    Button { scene.startReel() } label: {
-                        VStack(spacing: 2) {
-                            bundleImage("reel_crank")
-                                .resizable().scaledToFit().frame(height: 74)
-                                .shadow(color: .black.opacity(0.45), radius: 6, y: 3)
-                            Text("REEL IN")
-                                .font(fredoka(12, "Bold")).kerning(1)
-                                .foregroundStyle(Nautical.cream)
-                                .shadow(color: .black.opacity(0.6), radius: 2)
+            .padding()
+            if state.phase == .surface { drawerLayer }
+        }
+    }
+
+    /// Center-top cluster while diving: bag, biome chip, depth gauge.
+    private var diveGauge: some View {
+        HStack(spacing: Nautical.s2) {
+            Label("\(state.bagCount)/\(state.bagCapacity)", systemImage: "bag.fill")
+                .font(fredoka(15, "Bold")).foregroundStyle(Nautical.cream)
+                .contentTransition(.numericText())
+                .symbolEffect(.bounce, value: state.bagCount)
+                .animation(.spring(duration: 0.3), value: state.bagCount)
+            Text(biomeName(state.depthMeters).0)
+                .font(fredoka(11, "Bold"))
+                .foregroundStyle(biomeName(state.depthMeters).1)
+                .padding(.horizontal, 10).padding(.vertical, 4)
+                .background(biomeName(state.depthMeters).1.opacity(0.12), in: Capsule())
+                .overlay(Capsule().strokeBorder(biomeName(state.depthMeters).1.opacity(0.5), lineWidth: 1))
+                .animation(.easeInOut(duration: 0.4), value: biomeName(state.depthMeters).0)
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                Text("\(state.depthMeters)")
+                    .font(fredoka(24, "Bold")).foregroundStyle(Nautical.cream)
+                    .contentTransition(.numericText())
+                Text("m").font(fredoka(12)).foregroundStyle(Nautical.cream.opacity(0.6))
+            }
+        }
+        .padding(.horizontal, 14).padding(.vertical, 7)
+        .background(.ultraThinMaterial, in: Capsule())
+        .background(Nautical.navy.opacity(0.6), in: Capsule())
+        .overlay(Capsule().strokeBorder(Nautical.brassStroke, lineWidth: 1.5))
+        .shadow(color: .black.opacity(0.4), radius: 8, y: 3)
+    }
+
+    /// Thin bottom-right dock: quick actions only.
+    private var bottomDock: some View {
+        HStack(spacing: Nautical.s1) {
+            baitChip
+            instrumentToggle("icon_catch", "Catch") { showInventory = true }
+        }
+        .padding(.horizontal, 10).padding(.vertical, 6)
+        .background(.ultraThinMaterial, in: Capsule())
+        .background(Nautical.navy.opacity(0.55), in: Capsule())
+        .overlay(Capsule().strokeBorder(Nautical.brassStroke, lineWidth: 1.5))
+        .shadow(color: .black.opacity(0.45), radius: 8, y: 4)
+    }
+
+    // MARK: side drawers
+
+    private var drawerLayer: some View {
+        ZStack {
+            // scrim closes the open drawer
+            if openDrawer != nil {
+                Color.black.opacity(0.3).ignoresSafeArea()
+                    .onTapGesture { withAnimation(.spring(duration: 0.3)) { openDrawer = nil } }
+            }
+            HStack(spacing: 0) {
+                drawer(.left)
+                Spacer()
+                drawer(.right)
+            }
+            .ignoresSafeArea() // anchor drawers to the physical screen edges, not the safe area
+        }
+        // edge swipes open/close; one drawer at a time by construction
+        .gesture(
+            DragGesture(minimumDistance: 25)
+                .onEnded { g in
+                    withAnimation(.spring(duration: 0.3)) {
+                        if g.translation.width > 40 {
+                            openDrawer = g.startLocation.x < 80 ? .left : (openDrawer == .right ? nil : openDrawer)
+                        } else if g.translation.width < -40 {
+                            openDrawer = g.startLocation.x > UIScreen.main.bounds.width - 80 ? .right : (openDrawer == .left ? nil : openDrawer)
                         }
                     }
                 }
-            case .fighting, .reeling, .summary:
-                EmptyView()
-            }
-        }
-        .padding()
+        )
     }
 
-    /// Brass-framed glass bar: currency plaques, and depth gauge + biome while diving.
-    private var topInstrumentBar: some View {
-        HStack(spacing: Nautical.s2) {
-            CurrencyBadge(icon: "icon_sanddollar", amount: state.coins, tint: Nautical.brassBright)
-            CurrencyBadge(icon: "icon_diamond", amount: state.gems, tint: Nautical.teal)
-            Spacer()
-            if state.phase == .diving || state.phase == .reeling || state.phase == .fighting {
-                Label("\(state.bagCount)/\(state.bagCapacity)", systemImage: "bag.fill")
-                    .font(fredoka(17, "Bold")).foregroundStyle(Nautical.cream)
-                    .contentTransition(.numericText())
-                    .symbolEffect(.bounce, value: state.bagCount)
-                    .animation(.spring(duration: 0.3), value: state.bagCount)
-                // biome glass chip
-                Text(biomeName(state.depthMeters).0)
-                    .font(fredoka(11, "Bold"))
-                    .foregroundStyle(biomeName(state.depthMeters).1)
-                    .padding(.horizontal, 10).padding(.vertical, 5)
-                    .background(biomeName(state.depthMeters).1.opacity(0.12), in: Capsule())
-                    .overlay(Capsule().strokeBorder(biomeName(state.depthMeters).1.opacity(0.5), lineWidth: 1))
-                    .animation(.easeInOut(duration: 0.4), value: biomeName(state.depthMeters).0)
-                // depth gauge: big numerals, small unit
-                HStack(alignment: .firstTextBaseline, spacing: 2) {
-                    Text("\(state.depthMeters)")
-                        .font(fredoka(26, "Bold")).foregroundStyle(Nautical.cream)
-                        .contentTransition(.numericText())
-                    Text("m").font(fredoka(13)).foregroundStyle(Nautical.cream.opacity(0.6))
+    private func drawer(_ side: Drawer) -> some View {
+        let isOpen = openDrawer == side
+        let width: CGFloat = 210 // < 30% of landscape width
+        return HStack(spacing: 0) {
+            if side == .right { drawerHandle(side) }
+            VStack(spacing: Nautical.s1) {
+                if side == .left {
+                    Text("Captain's Log").gameText(16, weight: "Bold")
+                    drawerRow("crate", "Trophies", badge: !state.unclaimedAchievements.isEmpty) { showTrophies = true }
+                    drawerRow("icon_dex", "Fish Dex", badge: dexMilestones.contains(where: { state.canClaimChest($0) })) { showDex = true }
+                    drawerRow("icon_settings", "Settings") { showSettings = true }
+                } else {
+                    Text("Harbor").gameText(16, weight: "Bold")
+                    drawerRow("icon_shop", "Shop") { showShop = true }
+                    drawerRow("icon_aquarium", "Aquarium") { showAquarium = true }
                 }
+                Spacer()
             }
+            .padding(Nautical.s2)
+            .frame(width: width)
+            .frame(maxHeight: .infinity)
+            .background(.ultraThinMaterial)
+            .background(Nautical.navy.opacity(0.94)) // deep navy glass, not washed grey
+            .overlay(Rectangle().frame(width: 2)
+                .foregroundStyle(Nautical.brassStroke),
+                alignment: side == .left ? .trailing : .leading)
+            .shadow(color: .black.opacity(0.6), radius: 16)
+            if side == .left { drawerHandle(side) }
         }
-        .padding(.horizontal, Nautical.s2).padding(.vertical, 10)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: Nautical.cornerRadius))
-        .background(RoundedRectangle(cornerRadius: Nautical.cornerRadius)
-            .fill(LinearGradient(colors: [Nautical.navyLight.opacity(0.85), Nautical.navy.opacity(0.9)],
-                                 startPoint: .top, endPoint: .bottom)))
-        .overlay(RoundedRectangle(cornerRadius: Nautical.cornerRadius)
-            .strokeBorder(Nautical.brassStroke, lineWidth: 2))
-        .shadow(color: .black.opacity(0.5), radius: 12, y: 5)
+        .offset(x: isOpen ? 0 : (side == .left ? -width : width))
+        .animation(.spring(duration: 0.3), value: openDrawer)
+        .ignoresSafeArea(edges: .vertical)
     }
 
-    /// Wooden control deck: instrument toggles + the DIVE capstan.
-    private var controlDeck: some View {
-        HStack(spacing: Nautical.s1) {
-            instrumentToggle("icon_settings", "") { showSettings = true }
-            instrumentToggle("icon_dex", "Dex", badge: dexMilestones.contains(where: { state.canClaimChest($0) })) { showDex = true }
-            instrumentToggle("crate", "Trophies", badge: !state.unclaimedAchievements.isEmpty) { showTrophies = true }
-            Spacer()
-            baitChip
-            instrumentToggle("icon_aquarium", "Aquarium") { showAquarium = true }
-            instrumentToggle("icon_catch", "Catch") { showInventory = true }
-            instrumentToggle("icon_shop", "Shop") { showShop = true }
-            diveCapstan
+    /// Brass tab on the drawer edge — tap to toggle.
+    private func drawerHandle(_ side: Drawer) -> some View {
+        Button {
+            withAnimation(.spring(duration: 0.3)) {
+                openDrawer = openDrawer == side ? nil : side
+            }
+        } label: {
+            Image(systemName: side == .left ? "chevron.right" : "chevron.left")
+                .rotationEffect(.degrees(openDrawer == side ? 180 : 0))
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(Nautical.navy)
+                .frame(width: 24, height: 64)
+                .background(
+                    UnevenRoundedRectangle(
+                        cornerRadii: side == .left
+                            ? .init(topLeading: 0, bottomLeading: 0, bottomTrailing: 12, topTrailing: 12)
+                            : .init(topLeading: 12, bottomLeading: 12, bottomTrailing: 0, topTrailing: 0))
+                        .fill(LinearGradient(colors: [Nautical.brassBright, Nautical.brass],
+                                             startPoint: .top, endPoint: .bottom)))
+                .shadow(color: .black.opacity(0.4), radius: 5)
         }
-        .padding(.horizontal, Nautical.s2).padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: Nautical.panelRadius)
-                .fill(LinearGradient(colors: [Nautical.wood.opacity(0.9), Nautical.wood.opacity(0.65), Nautical.navy.opacity(0.9)],
-                                     startPoint: .top, endPoint: .bottom))
-                .overlay(RoundedRectangle(cornerRadius: Nautical.panelRadius)
-                    .fill(LinearGradient(colors: [.white.opacity(0.1), .clear], startPoint: .top, endPoint: .center))))
-        .overlay(RoundedRectangle(cornerRadius: Nautical.panelRadius)
-            .strokeBorder(Nautical.brassStroke, lineWidth: 2))
-        .shadow(color: .black.opacity(0.55), radius: 14, y: 6)
+    }
+
+    private func drawerRow(_ icon: String, _ title: String, badge: Bool = false, action: @escaping () -> Void) -> some View {
+        Button {
+            withAnimation(.spring(duration: 0.3)) { openDrawer = nil }
+            action()
+        } label: {
+            HStack(spacing: 10) {
+                bundleImage(icon).resizable().scaledToFit().frame(width: 30, height: 30)
+                Text(title).font(fredoka(14, "Bold")).foregroundStyle(Nautical.cream)
+                Spacer()
+                if badge { Circle().fill(Nautical.danger).frame(width: 10, height: 10) }
+            }
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(LinearGradient(colors: [Nautical.navyLight, Nautical.navy], startPoint: .top, endPoint: .bottom))
+                    .overlay(RoundedRectangle(cornerRadius: 12)
+                        .fill(LinearGradient(colors: [.white.opacity(0.1), .clear], startPoint: .top, endPoint: .center))))
+            .overlay(RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(Nautical.brass.opacity(0.5), lineWidth: 1.2))
+        }
     }
 
     /// Square instrument toggle: icon on an inset navy well with brass rim.
