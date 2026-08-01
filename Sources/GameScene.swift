@@ -1048,7 +1048,10 @@ final class GameScene: SKScene {
                 return
             }
             snag(node, species: sp, state: state)
-            if hooked.count >= state.bagCapacity { break }
+            // one fish per bite: schools cluster tightly, so without this pause the
+            // hook vacuums a whole school (and the bag) in a single frame
+            catchGraceUntil = lastTime + 0.4
+            return
         }
     }
 
