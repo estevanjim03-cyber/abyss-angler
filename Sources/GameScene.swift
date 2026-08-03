@@ -657,6 +657,11 @@ final class GameScene: SKScene {
         }
         let depth = CGFloat.random(in: sp.minDepth...sp.maxDepth) * ptPerMeter
         node.position = fixed ?? CGPoint(x: .random(in: -worldHalfWidth...worldHalfWidth), y: -depth)
+        // deep water grows monsters: up to 1.8x render size at 1000m
+        let depthScale = 1 + min(-node.position.y / ptPerMeter, 1000) / 1000 * 0.8
+        node.setScale(depthScale)
+        node.userData = node.userData ?? [:]
+        node.userData?["ds"] = depthScale
         fishLayer.addChild(node)
         let heading = CGFloat.random(in: 0...(2 * .pi))
         node.userData?["vx"] = cos(heading) * sp.speed
@@ -960,7 +965,8 @@ final class GameScene: SKScene {
             guard let id = node.userData?["id"] as? String,
                   let sp = species(for: id) else { continue }
             let d = hypot(node.position.x - hook.position.x, node.position.y - hook.position.y)
-            guard d < 30 + sp.size / 2 else { continue }
+            let ds = node.userData?["ds"] as? CGFloat ?? 1 // depth-grown fish have a bigger bite radius
+            guard d < 30 + sp.size * ds / 2 else { continue }
             guard sp.hookReq <= state.hookStrength else {
                 node.run(.moveBy(x: node.xScale < 0 ? 220 : -220, y: -40, duration: 0.4))
                 continue
