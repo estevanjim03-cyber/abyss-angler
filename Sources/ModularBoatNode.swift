@@ -56,9 +56,9 @@ let hullLayouts: [String: HullLayout] = [
     // stage-1 modular flats skiff: bare hull + console/motor/platform modules from the sprite sheet
     "flats": HullLayout(
         id: "flats", size: CGSize(width: 260, height: 36),
-        deckPosition: CGPoint(x: 6, y: 58), rodMountPosition: CGPoint(x: 64, y: 30),
-        captainSeatPosition: CGPoint(x: 32, y: 38), waterlineOffset: 10,
-        rodWidth: 90, rodTipOffset: CGPoint(x: 150, y: 90), captainWidth: 40,
+        deckPosition: CGPoint(x: 6, y: 58), rodMountPosition: CGPoint(x: 54, y: 30),
+        captainSeatPosition: CGPoint(x: 30, y: 32), waterlineOffset: 10,
+        rodWidth: 48, rodTipOffset: CGPoint(x: 96, y: 62), captainWidth: 40,
         surfaceZoom: 1.15, legacyAsset: nil),
     "skiff": HullLayout(
         id: "skiff", size: CGSize(width: 200, height: 90),
@@ -147,7 +147,8 @@ final class ModularBoatNode: SKNode {
         let cap = Self.sprite(captainAsset, width: layout.captainWidth)
             ?? Self.fallbackCaptain(width: layout.captainWidth)
         cap.position = layout.captainSeatPosition
-        cap.zPosition = 0.9
+        // on the flats boat the captain stands IN the hull — legs hidden by the gunwale
+        cap.zPosition = layout.id == "flats" ? -0.3 : 0.9
         addChild(cap)
 
         // optional detail prop

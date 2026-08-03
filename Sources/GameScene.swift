@@ -464,7 +464,7 @@ final class GameScene: SKScene {
             // motor rides low: waterline cuts it mid-shaft
             let console = reel >= 9 ? 3 : reel >= 5 ? 2 : 1
             extras.append(("deck_console_\(console)", CGPoint(x: -4, y: 46), 56, -0.5))
-            extras.append(("detail_motor_\(line >= 6 ? 2 : 1)", CGPoint(x: 122, y: 6), 34, -0.45))
+            extras.append(("detail_motor_\(line >= 6 ? 2 : 1)", CGPoint(x: 108, y: 6), 34, -0.45))
             if bag >= 5 {
                 extras.append(("detail_platform_\(bag >= 8 ? 2 : 1)", CGPoint(x: 96, y: 48), 64, -0.55))
             }
