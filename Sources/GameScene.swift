@@ -1176,8 +1176,16 @@ final class GameScene: SKScene {
         }
         let p = cameraNode.position
         cameraNode.position = CGPoint(x: p.x + (target.x - p.x) * 0.1, y: p.y + (target.y - p.y) * 0.1)
-        // surface zoom sells boat size: skiff slightly out, yacht way out; 1.0 underwater
-        let targetScale: CGFloat = phase == .surface ? layout.surfaceZoom : 1.0
+        // surface zoom sells boat size. Underwater FOV grows with the hook:
+        // lvl 1 = 0.6x (hook reads big, world claustrophobic) -> lvl 10 = 1.2x.
+        // Fights punch in tighter for drama.
+        let hookLvl = CGFloat(state?.hookStrength ?? 1)
+        let fov = 0.6 + (min(hookLvl, 10) - 1) / 9 * 0.6
+        let targetScale: CGFloat = switch phase {
+        case .surface: layout.surfaceZoom
+        case .fighting: fov * 0.8
+        default: fov
+        }
         let s = cameraNode.xScale
         cameraNode.setScale(s + (targetScale - s) * 0.08)
     }
