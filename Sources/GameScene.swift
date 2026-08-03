@@ -1191,23 +1191,25 @@ final class GameScene: SKScene {
         if phase == .surface {
             target = CGPoint(x: 0, y: 40)
         } else {
-            target = CGPoint(x: hook.position.x, y: min(hook.position.y + 60, 40))
+            target = hook.position // hook rides screen center — no surface clamp, no offset
         }
         let p = cameraNode.position
-        cameraNode.position = CGPoint(x: p.x + (target.x - p.x) * 0.1, y: p.y + (target.y - p.y) * 0.1)
+        // tiny lag: fast follow that lets the hook drift a few pts when you whip the stick
+        let f: CGFloat = phase == .surface ? 0.1 : 0.25
+        cameraNode.position = CGPoint(x: p.x + (target.x - p.x) * f, y: p.y + (target.y - p.y) * f)
         // surface zoom sells boat size. Underwater FOV grows with the hook:
         // lvl 1 = 0.6x (hook reads big, world claustrophobic) -> lvl 10 = 1.2x.
         // Fights punch in tighter for drama.
         let hookLvl = CGFloat(state?.hookStrength ?? 1)
-        // wider top end: big hooks earn a big view (lvl1 0.45x -> lvl10 1.35x)
-        let fov = 0.45 + (min(hookLvl, 10) - 1) / 9 * 0.9
+        // lvl1 0.65x -> lvl10 1.85x
+        let fov = 0.65 + (min(hookLvl, 10) - 1) / 9 * 1.2
         var targetScale: CGFloat = switch phase {
         case .surface: layout.surfaceZoom
         case .fighting: fov * 0.8
         default: fov
         }
         // dive swoop: every dive opens with a hard close-up on the hook, then settles
-        if phase == .diving, lastTime < diveSwoopUntil { targetScale = 0.45 }
+        if phase == .diving, lastTime < diveSwoopUntil { targetScale = 0.5 }
         let s = cameraNode.xScale
         cameraNode.setScale(s + (targetScale - s) * 0.08)
     }
