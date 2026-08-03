@@ -841,15 +841,14 @@ final class GameScene: SKScene {
         // full 2D joystick drive; idle = hover
         // vertical crawl ~8 m/s so 1000m takes ~2 min; horizontal stays nimble
         let stunned = now < stunUntil
-        let vSpeed: CGFloat = stunned ? 0 : 50
-        // ponytail: reel track doubles as the horizontal-thrust upgrade — lvl1 ≈ old 130, lvl10 = 400.
-        // Vertical descent untouched so 1000m stays ~2 min.
+        // one reel-scaled speed in every direction — torpedo steering, free climbing.
+        // lvl1 = 130 (1000m ≈ 80s straight down), lvl10 = 400.
         let reelLvl = CGFloat(state.levels[.reel] ?? 1)
-        let hSpeed: CGFloat = stunned ? 0 : 130 + (reelLvl - 1) * 30
+        let speed: CGFloat = stunned ? 0 : 130 + (reelLvl - 1) * 30
         var pos = hook.position
         pos.y -= (stunned ? 10 : 0) * dt
-        pos.x += CGFloat(state.joyX) * hSpeed * dt
-        pos.y += CGFloat(state.joyY) * vSpeed * dt
+        pos.x += CGFloat(state.joyX) * speed * dt
+        pos.y += CGFloat(state.joyY) * speed * dt
         pos.x = min(max(pos.x, -worldHalfWidth), worldHalfWidth)
         pos.y = min(max(pos.y, -state.maxDepthMeters * ptPerMeter), -10)
         // solid formations: push the hook out so it slides around rocks/coral
