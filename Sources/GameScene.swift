@@ -669,6 +669,30 @@ final class GameScene: SKScene {
             node.run(.repeatForever(.animate(with: [f1, f2], timePerFrame: beat, resize: false, restore: true)))
         }
 
+        // body flex: warp the trailing half up/down in a swim-beat rhythm —
+        // reads as tail undulation without extra art
+        let cols = 2, rows = 1
+        let src: [SIMD2<Float>] = [[0, 0], [0.5, 0], [1, 0], [0, 1], [0.5, 1], [1, 1]]
+        func bent(_ dy: Float) -> [SIMD2<Float>] {
+            [[0, 0], [0.5, 0], [1, dy], [0, 1], [0.5, 1], [1, 1 + dy]]
+        }
+        node.warpGeometry = SKWarpGeometryGrid(columns: cols, rows: rows,
+                                               sourcePositions: src, destinationPositions: src)
+        let beat = max(0.18, 0.5 - Double(sp.speed) / 450)
+        if let up = SKAction.warp(to: SKWarpGeometryGrid(columns: cols, rows: rows,
+                                                         sourcePositions: src, destinationPositions: bent(0.07)),
+                                  duration: beat),
+           let down = SKAction.warp(to: SKWarpGeometryGrid(columns: cols, rows: rows,
+                                                           sourcePositions: src, destinationPositions: bent(-0.07)),
+                                    duration: beat) {
+            up.timingMode = .easeInEaseOut
+            down.timingMode = .easeInEaseOut
+            node.run(.repeatForever(.sequence([up, down])))
+        }
+
+        // burst-glide phase: fish pulse speed instead of cruising at constant velocity
+        node.userData?["ph"] = CGFloat.random(in: 0...(2 * .pi))
+
         // rarity glow: epic+ get a soft pulsing halo in their rarity color
         if sp.rarity >= .epic {
             let tint: SKColor = switch sp.rarity {
@@ -1056,8 +1080,11 @@ final class GameScene: SKScene {
                 var heading = atan2(vy, vx)
                 heading += CGFloat.random(in: -2.6...2.6) * dt
                 if Int.random(in: 0..<240) == 0 { heading = .random(in: 0...(2 * .pi)) }
-                vx = cos(heading) * sp.speed
-                vy = sin(heading) * sp.speed // full vertical freedom — no parallel-only cruising
+                // burst-glide: kick then coast, like real fish — not a constant cruise
+                let ph = node.userData?["ph"] as? CGFloat ?? 0
+                let pulse = 0.55 + 0.45 * pow(sin(CGFloat(lastTime) * 2.2 + ph), 2)
+                vx = cos(heading) * sp.speed * pulse
+                vy = sin(heading) * sp.speed * pulse // full vertical freedom
             }
 
             // schooling: commons drift gently toward their school anchor
@@ -1085,6 +1112,10 @@ final class GameScene: SKScene {
             node.position.x += vx * dt
             node.position.y += vy * dt
             if abs(vx) > 4 { node.xScale = abs(node.xScale) * (vx > 0 ? -1 : 1) }
+            // pitch the body toward the direction of travel (nose up when climbing)
+            let facing: CGFloat = node.xScale < 0 ? 1 : -1
+            let pitch = atan2(vy, abs(vx) + 30) * 0.55
+            node.zRotation += (pitch * facing - node.zRotation) * min(1, 6 * dt)
 
             // soft side edges: swim past the border, then get nudged back — no teleport
             if node.position.x > fishHalfWidth { node.userData?["vx"] = -abs(vx) }
