@@ -1193,7 +1193,8 @@ final class GameScene: SKScene {
         // lvl 1 = 0.6x (hook reads big, world claustrophobic) -> lvl 10 = 1.2x.
         // Fights punch in tighter for drama.
         let hookLvl = CGFloat(state?.hookStrength ?? 1)
-        let fov = 0.45 + (min(hookLvl, 10) - 1) / 9 * 0.55
+        // wider top end: big hooks earn a big view (lvl1 0.45x -> lvl10 1.35x)
+        let fov = 0.45 + (min(hookLvl, 10) - 1) / 9 * 0.9
         var targetScale: CGFloat = switch phase {
         case .surface: layout.surfaceZoom
         case .fighting: fov * 0.8
