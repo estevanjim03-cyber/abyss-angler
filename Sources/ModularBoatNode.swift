@@ -161,6 +161,8 @@ final class ModularBoatNode: SKNode {
             guard let s = Self.sprite(m.id, width: m.width) else { continue }
             s.position = m.pos
             s.zPosition = m.z
+            // sheet parts share the hull's bow-right orientation — flip with it
+            if layout.id == "flats" { s.xScale = -1 }
             addChild(s)
         }
     }

@@ -460,14 +460,16 @@ final class GameScene: SKScene {
             let reel = state.levels[.reel] ?? 1
             let line = state.levels[.line] ?? 1
             let bag = state.levels[.bag] ?? 1
+            // modules sit BEHIND the hull (negative z) so the gunwale hides their bases;
+            // motor rides low: waterline cuts it mid-shaft
             let console = reel >= 9 ? 3 : reel >= 5 ? 2 : 1
-            extras.append(("deck_console_\(console)", CGPoint(x: -4, y: 46), 56, 0.5))
-            extras.append(("detail_motor_\(line >= 6 ? 2 : 1)", CGPoint(x: 118, y: 28), 34, 0.45))
+            extras.append(("deck_console_\(console)", CGPoint(x: -4, y: 46), 56, -0.5))
+            extras.append(("detail_motor_\(line >= 6 ? 2 : 1)", CGPoint(x: 122, y: 6), 34, -0.45))
             if bag >= 5 {
-                extras.append(("detail_platform_\(bag >= 8 ? 2 : 1)", CGPoint(x: 96, y: 50), 64, 0.4))
+                extras.append(("detail_platform_\(bag >= 8 ? 2 : 1)", CGPoint(x: 96, y: 48), 64, -0.55))
             }
             if state.hookStrength >= 5 {
-                extras.append(("detail_rodholder", CGPoint(x: -62, y: 40), 24, 0.48))
+                extras.append(("detail_rodholder", CGPoint(x: -62, y: 38), 24, -0.48))
             }
         }
         let unit = ModularBoatNode(layout: layout,
