@@ -66,9 +66,9 @@ let hullLayouts: [String: HullLayout] = [
         rodWidth: 92, rodTipOffset: CGPoint(x: 140, y: 92), captainWidth: 48,
         surfaceZoom: 1.2, legacyAsset: nil),
     "console": HullLayout(
-        id: "console", size: CGSize(width: 340, height: 120),
-        deckPosition: CGPoint(x: -10, y: 52), rodMountPosition: CGPoint(x: 118, y: 60),
-        captainSeatPosition: CGPoint(x: 30, y: 82), waterlineOffset: 36,
+        id: "console", size: CGSize(width: 340, height: 138),
+        deckPosition: CGPoint(x: -10, y: 52), rodMountPosition: CGPoint(x: 118, y: 58),
+        captainSeatPosition: CGPoint(x: 44, y: 62), waterlineOffset: 34,
         rodWidth: 116, rodTipOffset: CGPoint(x: 186, y: 118), captainWidth: 56,
         surfaceZoom: 1.3, legacyAsset: nil),
     "sportfisher": HullLayout(
@@ -86,10 +86,11 @@ let hullLayouts: [String: HullLayout] = [
 ]
 
 /// Maps the legacy shop ids (save data) onto hull tiers. Save format unchanged.
+/// Starter boat renders as the new center-console hull art.
 func hullId(forBoat boatId: String) -> String {
     switch boatId {
     case "boat_viking": return "sportfisher"
-    default: return "skiff"
+    default: return "console"
     }
 }
 
