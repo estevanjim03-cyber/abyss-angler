@@ -16,6 +16,7 @@ final class GameScene: SKScene {
     private let terrainLayer = SKNode()
     private var denCenters: [CGPoint] = []       // cave pockets; deep ones hold mythics
     private var slowmoUntil: TimeInterval = 0
+    private var diveSwoopUntil: TimeInterval = 0
 
     private let cameraNode = SKCameraNode()
     private var boat = SKNode()
@@ -407,8 +408,8 @@ final class GameScene: SKScene {
 
     func rebuildHook() {
         hook.removeAllChildren()
-        // beefs up with each hook upgrade: 24pt → 42pt at lvl 10
-        let hookWidth = 24 + CGFloat((state?.hookStrength ?? 1) - 1) * 2
+        // beefs up with each hook upgrade: 24pt → 80pt at lvl 10
+        let hookWidth = 24 + CGFloat((state?.hookStrength ?? 1) - 1) * 6.2
         let sprite = spriteOrPlaceholder(state?.currentHook ?? "hook_classic", width: hookWidth)
         hook.addChild(sprite)
     }
@@ -788,6 +789,7 @@ final class GameScene: SKScene {
         hook.isHidden = false
         hookTrail = []
         maxDepthThisDive = 0
+        diveSwoopUntil = lastTime + 1.1 // cinematic close-up on the hook as it drops
         state.consumeBaitForDive()
         rebuildHook() // hook size tracks upgrade level
         state.joyX = 0
@@ -863,6 +865,15 @@ final class GameScene: SKScene {
         }
         hook.position = pos
 
+        // full 360° aim: hook points where the joystick points, hangs straight when idle
+        let mag = hypot(CGFloat(state.joyX), CGFloat(state.joyY))
+        if mag > 0.12 {
+            hook.zRotation = atan2(CGFloat(state.joyY), CGFloat(state.joyX)) + .pi / 2
+        } else {
+            // ease back to hanging vertical
+            hook.zRotation += (0 - hook.zRotation) * min(1, 8 * dt)
+        }
+
         if !stunned {
             checkHazards(state: state, now: now)
             if now >= catchGraceUntil { checkCatches(state: state) }
@@ -874,6 +885,7 @@ final class GameScene: SKScene {
     }
 
     private func updateReeling(dt: CGFloat, state: GameState) {
+        hook.zRotation += (0 - hook.zRotation) * min(1, 6 * dt) // swing back to vertical
         hook.position.y += state.reelSpeed * dt
         hook.position.x += (boat.position.x + rodTipOffset.x - hook.position.x) * 2 * dt
         if hook.position.y >= -20 {
@@ -1132,7 +1144,9 @@ final class GameScene: SKScene {
         let path = CGMutablePath()
         // named rodTip node in the modular boat — glued through bob and roll
         let rodTip = boatUnit?.rodTipWorldPosition(in: self) ?? convert(rodTipOffset, from: boat)
-        let hookEye = CGPoint(x: hook.position.x, y: hook.position.y + 20)
+        // line eye rides the hook's rotation so the line meets the rotated shank
+        let hookEye = CGPoint(x: hook.position.x - sin(hook.zRotation) * 20,
+                              y: hook.position.y + cos(hook.zRotation) * 20)
 
         // trail of recent hook positions so loops in the dive path show in the line
         if phase == .diving {
@@ -1180,12 +1194,14 @@ final class GameScene: SKScene {
         // lvl 1 = 0.6x (hook reads big, world claustrophobic) -> lvl 10 = 1.2x.
         // Fights punch in tighter for drama.
         let hookLvl = CGFloat(state?.hookStrength ?? 1)
-        let fov = 0.6 + (min(hookLvl, 10) - 1) / 9 * 0.6
-        let targetScale: CGFloat = switch phase {
+        let fov = 0.45 + (min(hookLvl, 10) - 1) / 9 * 0.55
+        var targetScale: CGFloat = switch phase {
         case .surface: layout.surfaceZoom
         case .fighting: fov * 0.8
         default: fov
         }
+        // dive swoop: every dive opens with a hard close-up on the hook, then settles
+        if phase == .diving, lastTime < diveSwoopUntil { targetScale = 0.45 }
         let s = cameraNode.xScale
         cameraNode.setScale(s + (targetScale - s) * 0.08)
     }
