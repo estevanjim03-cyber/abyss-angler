@@ -532,13 +532,6 @@ final class GameScene: SKScene {
             },
         ])))
 
-        // darker waterline band where the hull meets the sea
-        let band = SKSpriteNode(color: SKColor(red: 0.04, green: 0.10, blue: 0.14, alpha: 0.3),
-                                size: CGSize(width: layout.size.width * 0.94, height: 5))
-        band.position = CGPoint(x: 0, y: -1)
-        band.zPosition = 0.7
-        boat.addChild(band)
-
         boat.zPosition = 2
         addChild(boat)
         // motion is procedural now — see updateBoatFloat(dt:) in the frame loop
@@ -548,6 +541,7 @@ final class GameScene: SKScene {
 
     private var boatTime: CGFloat = 0
     private let hullShadow = SKShapeNode()
+    private let surfaceWater = SKShapeNode()
 
     /// Two-component parametric wave: long swell + short chop.
     private func waveHeight(at x: CGFloat) -> CGFloat {
@@ -596,21 +590,39 @@ final class GameScene: SKScene {
         shadowPath.closeSubpath()
         hullShadow.path = shadowPath
 
-        // surface line: sample the wave across the visible span (surface only)
+        // surface line + water overlay that laps IN FRONT of the hull (surface only)
         if cameraNode.position.y > -120 {
             waveLine.isHidden = false
-            let path = CGMutablePath()
+            surfaceWater.isHidden = false
+            if surfaceWater.parent == nil {
+                surfaceWater.fillColor = SKColor(red: 0.12, green: 0.42, blue: 0.68, alpha: 0.6)
+                surfaceWater.strokeColor = .clear
+                surfaceWater.zPosition = 2.5 // above the boat: waves cover the lower hull
+                addChild(surfaceWater)
+            }
             let span: CGFloat = 900 * max(1, cameraNode.xScale)
             let x0 = cameraNode.position.x - span
-            path.move(to: CGPoint(x: x0, y: waveHeight(at: x0)))
+            let x1 = cameraNode.position.x + span
+            let line = CGMutablePath()
+            let fill = CGMutablePath()
+            line.move(to: CGPoint(x: x0, y: waveHeight(at: x0)))
+            fill.move(to: CGPoint(x: x0, y: waveHeight(at: x0)))
             var x = x0 + 30
-            while x < cameraNode.position.x + span {
-                path.addLine(to: CGPoint(x: x, y: waveHeight(at: x)))
+            while x < x1 {
+                let y = waveHeight(at: x)
+                line.addLine(to: CGPoint(x: x, y: y))
+                fill.addLine(to: CGPoint(x: x, y: y))
                 x += 30
             }
-            waveLine.path = path
+            // close the fill downward so everything below the wave crest reads as water
+            fill.addLine(to: CGPoint(x: x1, y: -60))
+            fill.addLine(to: CGPoint(x: x0, y: -60))
+            fill.closeSubpath()
+            waveLine.path = line
+            surfaceWater.path = fill
         } else {
             waveLine.isHidden = true
+            surfaceWater.isHidden = true
         }
 
         // wake ripple drifting off the stern
