@@ -175,12 +175,13 @@ final class GameScene: SKScene {
         addChild(terrainLayer)
         generateTerrain()
 
-        let foam = SKSpriteNode(color: .white, size: CGSize(width: worldHalfWidth * 4, height: 4))
-        foam.alpha = 0.25 // soft surface hint, not a hard white bar
-        foam.position = .zero
-        foam.zPosition = -8
-        addChild(foam)
+        // undulating surface line — path rebuilt each frame from the same wave math
+        waveLine.strokeColor = SKColor(white: 1, alpha: 0.35)
+        waveLine.lineWidth = 2
+        waveLine.zPosition = -8
+        addChild(waveLine)
     }
+    private let waveLine = SKShapeNode()
 
     private let parallaxLayer = SKNode()
 
@@ -557,23 +558,62 @@ final class GameScene: SKScene {
 
     private var boatTime: CGFloat = 0
 
-    /// Wave height under world-x at current time (single gentle swell).
+    /// Two-component parametric wave: long swell + short chop.
     private func waveHeight(at x: CGFloat) -> CGFloat {
-        sin(x * 0.015 + boatTime * 1.1) * 3.5
+        sin(x * 0.02 + boatTime * 2.0) * 4 + sin(x * 0.05 + boatTime * 3.5) * 1.5
     }
 
     private func updateBoatFloat(dt: CGFloat) {
         boatTime += dt
-        // buoyancy: slow sine bob + ride the passing swell
-        let swell = waveHeight(at: boat.position.x)
-        let bob = sin(boatTime * 0.7) * 2.5
-        boat.position.y = swell + bob
 
-        // pitch (slow, ±3°) + roll from passing waves (faster, ±1.5°) + engine idle shiver
-        let pitch = sin(boatTime * 0.55) * 0.034
-        let roll = sin(boatTime * 1.8 + 1.3) * 0.018
-        let vibration = sin(boatTime * 42) * 0.0035 // outboard idling
-        boat.zRotation = pitch + roll + vibration
+        // Y follows the wave under the hull with a lag — spring, not snap
+        let targetY = waveHeight(at: boat.position.x)
+        boat.position.y += (targetY - boat.position.y) * 0.1
+
+        // pitch derives from the wave SLOPE between bow and stern,
+        // plus a very slow ±1° idle roll and a faint outboard shiver
+        let half = layout.size.width * 0.45
+        let bowH = waveHeight(at: boat.position.x - half)
+        let sternH = waveHeight(at: boat.position.x + half)
+        let slopePitch = atan2(sternH - bowH, half * 2)
+        let idleRoll = sin(boatTime * 0.3) * 0.017
+        let vibration = sin(boatTime * 42) * 0.003
+        let targetRot = slopePitch + idleRoll + vibration
+        boat.zRotation += (targetRot - boat.zRotation) * 0.08
+
+        // surface line: sample the wave across the visible span (surface only)
+        if cameraNode.position.y > -120 {
+            waveLine.isHidden = false
+            let path = CGMutablePath()
+            let span: CGFloat = 900 * max(1, cameraNode.xScale)
+            let x0 = cameraNode.position.x - span
+            path.move(to: CGPoint(x: x0, y: waveHeight(at: x0)))
+            var x = x0 + 30
+            while x < cameraNode.position.x + span {
+                path.addLine(to: CGPoint(x: x, y: waveHeight(at: x)))
+                x += 30
+            }
+            waveLine.path = path
+        } else {
+            waveLine.isHidden = true
+        }
+
+        // wake ripple drifting off the stern
+        if Int(boatTime * 60) % 80 == 0 {
+            let ripple = SKShapeNode(ellipseOf: CGSize(width: 26, height: 5))
+            ripple.strokeColor = SKColor(white: 1, alpha: 0.3)
+            ripple.fillColor = .clear
+            ripple.lineWidth = 1.5
+            ripple.position = CGPoint(x: boat.position.x + layout.size.width * 0.5,
+                                      y: boat.position.y - 1)
+            ripple.zPosition = 2.05
+            addChild(ripple)
+            ripple.run(.sequence([
+                .group([.scaleX(to: 2.2, duration: 1.6), .moveBy(x: 26, y: 0, duration: 1.6),
+                        .fadeOut(withDuration: 1.6)]),
+                .removeFromParent(),
+            ]))
+        }
 
         // foam where the hull cuts the surface; splash when a crest hits the bow
         if Int(boatTime * 60) % 24 == 0 {
@@ -591,7 +631,7 @@ final class GameScene: SKScene {
                 .removeFromParent(),
             ]))
         }
-        if swell > 3.0, Int(boatTime * 60) % 30 == 0 { // crest at the hull — bow splash
+        if waveHeight(at: boat.position.x) > 3.5, Int(boatTime * 60) % 30 == 0 { // crest — bow splash
             for _ in 0..<3 {
                 let drop = SKShapeNode(circleOfRadius: .random(in: 1.5...3))
                 drop.fillColor = SKColor(white: 1, alpha: 0.6)
