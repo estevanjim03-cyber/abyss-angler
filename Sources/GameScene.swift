@@ -508,18 +508,8 @@ final class GameScene: SKScene {
             ])))
         }
 
-        // soft hull shadow at the waterline, breathing with the bob
-        let hullShadow = SKShapeNode(ellipseOf: CGSize(width: layout.size.width * 0.9,
-                                                       height: layout.size.width * 0.07))
-        hullShadow.fillColor = SKColor(white: 0, alpha: 0.28)
-        hullShadow.strokeColor = .clear
-        hullShadow.position = CGPoint(x: 0, y: -6)
-        hullShadow.zPosition = -0.4
-        boat.addChild(hullShadow)
-        hullShadow.run(.repeatForever(.sequence([
-            .group([.scaleX(to: 1.06, duration: 1.2), .fadeAlpha(to: 0.2, duration: 1.2)]),
-            .group([.scaleX(to: 1.0, duration: 1.2), .fadeAlpha(to: 0.28, duration: 1.2)]),
-        ])))
+        // hull shadow lives at scene level and is redrawn each frame
+        // to follow the wave contour — see updateBoatFloat
 
         // bow spray: little white droplets kicked up while the boat rocks at the surface
         boat.run(.repeatForever(.sequence([
@@ -557,6 +547,7 @@ final class GameScene: SKScene {
     // MARK: buoyancy — the boat rides a virtual wave, not a canned tween
 
     private var boatTime: CGFloat = 0
+    private let hullShadow = SKShapeNode()
 
     /// Two-component parametric wave: long swell + short chop.
     private func waveHeight(at x: CGFloat) -> CGFloat {
@@ -580,6 +571,30 @@ final class GameScene: SKScene {
         let vibration = sin(boatTime * 42) * 0.003
         let targetRot = slopePitch + idleRoll + vibration
         boat.zRotation += (targetRot - boat.zRotation) * 0.08
+
+        // hull shadow: a soft ribbon under the boat that rides the wave contour
+        if hullShadow.parent == nil {
+            hullShadow.fillColor = SKColor(white: 0, alpha: 0.24)
+            hullShadow.strokeColor = .clear
+            hullShadow.zPosition = 2.02
+            addChild(hullShadow)
+        }
+        let shHalf = layout.size.width * 0.46
+        let shadowPath = CGMutablePath()
+        var sx = boat.position.x - shHalf
+        shadowPath.move(to: CGPoint(x: sx, y: waveHeight(at: sx) - 1))
+        while sx < boat.position.x + shHalf {
+            sx += 20
+            shadowPath.addLine(to: CGPoint(x: sx, y: waveHeight(at: sx) - 1))
+        }
+        // close downward for thickness, tapering at the ends
+        while sx > boat.position.x - shHalf {
+            let edge = 1 - abs(sx - boat.position.x) / shHalf // 1 center, 0 ends
+            shadowPath.addLine(to: CGPoint(x: sx, y: waveHeight(at: sx) - 1 - 7 * edge))
+            sx -= 20
+        }
+        shadowPath.closeSubpath()
+        hullShadow.path = shadowPath
 
         // surface line: sample the wave across the visible span (surface only)
         if cameraNode.position.y > -120 {
