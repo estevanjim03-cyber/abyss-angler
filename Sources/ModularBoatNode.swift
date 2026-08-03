@@ -51,8 +51,15 @@ let allDetailParts = [
     DetailPart(id: "detail_figurehead", name: "Carved Figurehead"),
 ]
 
-/// 5 hull tiers. skiff + sportfisher reuse the existing full-boat PNGs as their art.
+/// Hull tiers. skiff + sportfisher reuse the existing full-boat PNGs as their art.
 let hullLayouts: [String: HullLayout] = [
+    // stage-1 modular flats skiff: bare hull + console/motor/platform modules from the sprite sheet
+    "flats": HullLayout(
+        id: "flats", size: CGSize(width: 260, height: 36),
+        deckPosition: CGPoint(x: 6, y: 58), rodMountPosition: CGPoint(x: 64, y: 30),
+        captainSeatPosition: CGPoint(x: 32, y: 38), waterlineOffset: 10,
+        rodWidth: 90, rodTipOffset: CGPoint(x: 150, y: 90), captainWidth: 40,
+        surfaceZoom: 1.15, legacyAsset: nil),
     "skiff": HullLayout(
         id: "skiff", size: CGSize(width: 200, height: 90),
         deckPosition: CGPoint(x: -10, y: 30), rodMountPosition: CGPoint(x: 58, y: 40),
@@ -90,7 +97,7 @@ let hullLayouts: [String: HullLayout] = [
 func hullId(forBoat boatId: String) -> String {
     switch boatId {
     case "boat_viking": return "sportfisher"
-    default: return "console"
+    default: return "flats" // stage-1 modular skiff is the starter
     }
 }
 
@@ -98,8 +105,11 @@ final class ModularBoatNode: SKNode {
     let layout: HullLayout
     private let rodTipNode = SKNode()
 
+    /// extraModules: (asset, position in hull coords, width, zPosition) — used by
+    /// sheet-based hulls where upgrade tiers swap consoles/motors/platforms.
     init(layout: HullLayout, rodAsset: String, captainAsset: String,
-         deckId: String?, detailId: String?) {
+         deckId: String?, detailId: String?,
+         extraModules: [(id: String, pos: CGPoint, width: CGFloat, z: CGFloat)] = []) {
         self.layout = layout
         super.init()
 
@@ -146,6 +156,13 @@ final class ModularBoatNode: SKNode {
             d.zPosition = 0.8
             addChild(d)
         }
+
+        for m in extraModules {
+            guard let s = Self.sprite(m.id, width: m.width) else { continue }
+            s.position = m.pos
+            s.zPosition = m.z
+            addChild(s)
+        }
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -168,6 +185,8 @@ final class ModularBoatNode: SKNode {
         node.size = CGSize(width: width, height: texture.size().height * scale)
         node.position = p
         node.zPosition = z
+        // sheet hulls are drawn bow-right; game convention is stern-right
+        if layout.id == "flats" { node.xScale = -1 }
         addChild(node)
     }
 

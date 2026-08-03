@@ -453,11 +453,29 @@ final class GameScene: SKScene {
         // modular unit: hull + deck + rod + captain + detail; rod art tracks the reel tier
         let tier = state.levels[.reel] ?? 1
         let rodAsset = state.currentRodId ?? "rod_\(tier)"
+        // flats hull composes sheet modules from upgrade tiers:
+        // console <- reel, motor <- line, poling platform <- bag, rod holder <- hook
+        var extras: [(id: String, pos: CGPoint, width: CGFloat, z: CGFloat)] = []
+        if state.effectiveHullId == "flats" {
+            let reel = state.levels[.reel] ?? 1
+            let line = state.levels[.line] ?? 1
+            let bag = state.levels[.bag] ?? 1
+            let console = reel >= 9 ? 3 : reel >= 5 ? 2 : 1
+            extras.append(("deck_console_\(console)", CGPoint(x: -4, y: 46), 56, 0.5))
+            extras.append(("detail_motor_\(line >= 6 ? 2 : 1)", CGPoint(x: 118, y: 28), 34, 0.45))
+            if bag >= 5 {
+                extras.append(("detail_platform_\(bag >= 8 ? 2 : 1)", CGPoint(x: 96, y: 50), 64, 0.4))
+            }
+            if state.hookStrength >= 5 {
+                extras.append(("detail_rodholder", CGPoint(x: -62, y: 40), 24, 0.48))
+            }
+        }
         let unit = ModularBoatNode(layout: layout,
                                    rodAsset: rodAsset,
                                    captainAsset: state.currentCaptainId ?? "captain",
                                    deckId: state.currentDeckId,
-                                   detailId: state.currentDetailId)
+                                   detailId: state.currentDetailId,
+                                   extraModules: extras)
         boatUnit = unit
         // swap animation: new boat scales/fades in
         unit.alpha = 0
