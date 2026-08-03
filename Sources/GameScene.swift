@@ -463,8 +463,9 @@ final class GameScene: SKScene {
             // modules sit BEHIND the hull (negative z) so the gunwale hides their bases;
             // motor rides low: waterline cuts it mid-shaft
             let console = reel >= 9 ? 3 : reel >= 5 ? 2 : 1
-            extras.append(("deck_console_\(console)", CGPoint(x: -4, y: 46), 56, -0.5))
-            extras.append(("detail_motor_\(line >= 6 ? 2 : 1)", CGPoint(x: 108, y: 6), 34, -0.45))
+            // console tops out at the captain's chest; motor hangs off the stern edge
+            extras.append(("deck_console_\(console)", CGPoint(x: -6, y: 36), 34, -0.5))
+            extras.append(("detail_motor_\(line >= 6 ? 2 : 1)", CGPoint(x: 121, y: 6), 34, -0.45))
             if bag >= 5 {
                 extras.append(("detail_platform_\(bag >= 8 ? 2 : 1)", CGPoint(x: 96, y: 48), 64, -0.55))
             }
