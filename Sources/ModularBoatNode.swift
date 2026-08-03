@@ -126,7 +126,10 @@ final class ModularBoatNode: SKNode {
         rod.zPosition = 1
         addChild(rod)
         rodTipNode.name = "rodTip"
-        rodTipNode.position = layout.rodTipOffset
+        // auto-derive the tip from the rod art's actual bounds (top-outer corner,
+        // stern rod points up-right after the flip) — correct for every rod tier
+        let rf = rod.calculateAccumulatedFrame()
+        rodTipNode.position = CGPoint(x: rf.maxX - rf.width * 0.05, y: rf.maxY - rf.height * 0.04)
         addChild(rodTipNode)
 
         // captain seated on the deck

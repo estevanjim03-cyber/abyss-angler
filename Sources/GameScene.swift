@@ -412,7 +412,10 @@ final class GameScene: SKScene {
         let hookWidth = 24 + CGFloat((state?.hookStrength ?? 1) - 1) * 6.2
         let sprite = spriteOrPlaceholder(state?.currentHook ?? "hook_classic", width: hookWidth)
         hook.addChild(sprite)
+        // eyelet rides the top of the shank at every hook size
+        hookEyeOffset = sprite.size.height * 0.48
     }
+    private var hookEyeOffset: CGFloat = 20
 
     // MARK: feedback
 
@@ -1149,9 +1152,9 @@ final class GameScene: SKScene {
         let path = CGMutablePath()
         // named rodTip node in the modular boat — glued through bob and roll
         let rodTip = boatUnit?.rodTipWorldPosition(in: self) ?? convert(rodTipOffset, from: boat)
-        // line eye rides the hook's rotation so the line meets the rotated shank
-        let hookEye = CGPoint(x: hook.position.x - sin(hook.zRotation) * 20,
-                              y: hook.position.y + cos(hook.zRotation) * 20)
+        // line eye rides the hook's rotation and size so the line meets the eyelet
+        let hookEye = CGPoint(x: hook.position.x - sin(hook.zRotation) * hookEyeOffset,
+                              y: hook.position.y + cos(hook.zRotation) * hookEyeOffset)
 
         // trail of recent hook positions so loops in the dive path show in the line
         if phase == .diving {
