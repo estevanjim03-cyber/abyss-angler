@@ -57,7 +57,7 @@ let hullLayouts: [String: HullLayout] = [
     "flats": HullLayout(
         id: "flats", size: CGSize(width: 260, height: 36),
         deckPosition: CGPoint(x: 6, y: 58), rodMountPosition: CGPoint(x: 54, y: 30),
-        captainSeatPosition: CGPoint(x: 30, y: 32), waterlineOffset: 10,
+        captainSeatPosition: CGPoint(x: 30, y: 32), waterlineOffset: 6, // ~1/3 of hull below waterline
         rodWidth: 48, rodTipOffset: CGPoint(x: 96, y: 62), captainWidth: 40,
         surfaceZoom: 1.15, legacyAsset: nil),
     "skiff": HullLayout(

@@ -541,17 +541,72 @@ final class GameScene: SKScene {
             },
         ])))
 
+        // darker waterline band where the hull meets the sea
+        let band = SKSpriteNode(color: SKColor(red: 0.04, green: 0.10, blue: 0.14, alpha: 0.3),
+                                size: CGSize(width: layout.size.width * 0.94, height: 5))
+        band.position = CGPoint(x: 0, y: -1)
+        band.zPosition = 0.7
+        boat.addChild(band)
+
         boat.zPosition = 2
         addChild(boat)
-        // bob + rock with the waves
-        boat.run(.repeatForever(.sequence([
-            .moveBy(x: 0, y: 6, duration: 1.2),
-            .moveBy(x: 0, y: -6, duration: 1.2),
-        ])))
-        boat.run(.repeatForever(.sequence([
-            .rotate(toAngle: 0.035, duration: 1.7),
-            .rotate(toAngle: -0.035, duration: 1.7),
-        ])))
+        // motion is procedural now — see updateBoatFloat(dt:) in the frame loop
+    }
+
+    // MARK: buoyancy — the boat rides a virtual wave, not a canned tween
+
+    private var boatTime: CGFloat = 0
+
+    /// Wave height under world-x at current time (single gentle swell).
+    private func waveHeight(at x: CGFloat) -> CGFloat {
+        sin(x * 0.015 + boatTime * 1.1) * 3.5
+    }
+
+    private func updateBoatFloat(dt: CGFloat) {
+        boatTime += dt
+        // buoyancy: slow sine bob + ride the passing swell
+        let swell = waveHeight(at: boat.position.x)
+        let bob = sin(boatTime * 0.7) * 2.5
+        boat.position.y = swell + bob
+
+        // pitch (slow, ±3°) + roll from passing waves (faster, ±1.5°) + engine idle shiver
+        let pitch = sin(boatTime * 0.55) * 0.034
+        let roll = sin(boatTime * 1.8 + 1.3) * 0.018
+        let vibration = sin(boatTime * 42) * 0.0035 // outboard idling
+        boat.zRotation = pitch + roll + vibration
+
+        // foam where the hull cuts the surface; splash when a crest hits the bow
+        if Int(boatTime * 60) % 24 == 0 {
+            let side: CGFloat = Bool.random() ? 1 : -1
+            let foam = SKShapeNode(circleOfRadius: .random(in: 1.5...3))
+            foam.fillColor = SKColor(white: 1, alpha: 0.4)
+            foam.strokeColor = .clear
+            foam.position = CGPoint(x: boat.position.x + side * layout.size.width * 0.45,
+                                    y: boat.position.y + 1)
+            foam.zPosition = 2.1
+            addChild(foam)
+            foam.run(.sequence([
+                .group([.moveBy(x: side * .random(in: 8...20), y: .random(in: 2...6), duration: 0.7),
+                        .fadeOut(withDuration: 0.7)]),
+                .removeFromParent(),
+            ]))
+        }
+        if swell > 3.0, Int(boatTime * 60) % 30 == 0 { // crest at the hull — bow splash
+            for _ in 0..<3 {
+                let drop = SKShapeNode(circleOfRadius: .random(in: 1.5...3))
+                drop.fillColor = SKColor(white: 1, alpha: 0.6)
+                drop.strokeColor = .clear
+                drop.position = CGPoint(x: boat.position.x - layout.size.width * 0.48,
+                                        y: boat.position.y + 3)
+                drop.zPosition = 2.1
+                addChild(drop)
+                drop.run(.sequence([
+                    .group([.moveBy(x: .random(in: -16...(-4)), y: .random(in: 12...26), duration: 0.4),
+                            .fadeOut(withDuration: 0.4)]),
+                    .removeFromParent(),
+                ]))
+            }
+        }
     }
 
     /// Sprite from bundled art; falls back to a themed silhouette if the asset is missing.
@@ -848,6 +903,7 @@ final class GameScene: SKScene {
         if currentTime < slowmoUntil { dt *= 0.3 } // mythic reveal slow-mo
 
         moveFish(dt: CGFloat(dt))
+        updateBoatFloat(dt: CGFloat(dt))
 
         switch phase {
         case .surface:
