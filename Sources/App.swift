@@ -113,6 +113,9 @@ struct GameView: View {
     @State private var showTrophies = false
     @State private var crateDrops: [(String, Int)]? = nil
 
+    @State private var showAdmin = false
+    @State private var adminConfirmReset = false
+
     enum Drawer { case left, right }
     @State private var openDrawer: Drawer? = nil
 
@@ -152,6 +155,7 @@ struct GameView: View {
             }
             MineFlashOverlay(trigger: state.mineFlash)
             if showSettings { settingsOverlay }
+            if showAdmin { adminOverlay }
             if showBaitPicker { baitPickerOverlay }
             if showTrophies { trophiesOverlay }
             if state.pendingLoginReward != nil { loginRewardOverlay }
@@ -245,12 +249,88 @@ struct GameView: View {
                     }
                 }
                 .tint(Nautical.brass)
+                // long-press 1.5s to open the hidden admin panel
+                Text("v1.0")
+                    .font(fredoka(11)).foregroundStyle(Nautical.cream.opacity(0.35))
+                    .onLongPressGesture(minimumDuration: 1.5) {
+                        showSettings = false
+                        showAdmin = true
+                    }
             }
             .padding(20)
             .frame(maxWidth: 360)
             .background(Nautical.panelFill, in: RoundedRectangle(cornerRadius: Nautical.panelRadius))
             .overlay(RoundedRectangle(cornerRadius: Nautical.panelRadius).strokeBorder(Nautical.brassStroke, lineWidth: 2))
             .shadow(color: .black.opacity(0.5), radius: 14, y: 6)
+        }
+    }
+
+    // MARK: admin panel (testing only)
+
+    private var adminOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.5).ignoresSafeArea()
+                .onTapGesture { showAdmin = false; adminConfirmReset = false }
+            VStack(spacing: 10) {
+                Text("ADMIN").gameText(18, weight: "Bold").kerning(2)
+                // currencies
+                HStack(spacing: 8) {
+                    adminButton("+1k") { state.coins += 1_000; state.save() }
+                    adminButton("+10k") { state.coins += 10_000; state.save() }
+                    adminButton("+10 💎") { state.gems += 10; state.save() }
+                    adminButton("+100 💎") { state.gems += 100; state.save() }
+                }
+                // upgrade level steppers
+                ForEach(UpgradeTrack.allCases) { track in
+                    HStack {
+                        Text(track.rawValue.capitalized)
+                            .font(fredoka(13, "Bold")).foregroundStyle(Nautical.cream)
+                            .frame(width: 50, alignment: .leading)
+                        adminButton("−") {
+                            state.adminSetLevel(track, (state.levels[track] ?? 1) - 1)
+                            scene.rebuildBoat(); scene.rebuildHook()
+                        }
+                        Text("\(state.levels[track] ?? 1)")
+                            .font(fredoka(15, "Bold")).foregroundStyle(Nautical.brassBright)
+                            .frame(width: 28)
+                        adminButton("+") {
+                            state.adminSetLevel(track, (state.levels[track] ?? 1) + 1)
+                            scene.rebuildBoat(); scene.rebuildHook()
+                        }
+                    }
+                }
+                adminButton("UNLOCK EVERYTHING", wide: true) { state.adminUnlockAll() }
+                // reset with confirm step
+                adminButton(adminConfirmReset ? "TAP AGAIN TO WIPE SAVE" : "FULL RESET", wide: true,
+                            color: Nautical.danger) {
+                    if adminConfirmReset {
+                        state.adminReset()
+                        scene.rebuildBoat(); scene.rebuildHook()
+                        adminConfirmReset = false
+                        showAdmin = false
+                    } else {
+                        adminConfirmReset = true
+                    }
+                }
+            }
+            .padding(18)
+            .frame(maxWidth: 340)
+            .background(Nautical.panelFill, in: RoundedRectangle(cornerRadius: Nautical.panelRadius))
+            .overlay(RoundedRectangle(cornerRadius: Nautical.panelRadius)
+                .strokeBorder(Nautical.danger.opacity(0.7), lineWidth: 2))
+            .shadow(color: .black.opacity(0.5), radius: 14, y: 6)
+        }
+    }
+
+    private func adminButton(_ label: String, wide: Bool = false, color: Color = Nautical.brass,
+                             action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(fredoka(13, "Bold")).foregroundStyle(Nautical.cream)
+                .padding(.horizontal, 12).padding(.vertical, 7)
+                .frame(maxWidth: wide ? .infinity : nil)
+                .background(color.opacity(0.3), in: Capsule())
+                .overlay(Capsule().strokeBorder(color.opacity(0.7), lineWidth: 1.2))
         }
     }
 

@@ -716,6 +716,58 @@ final class GameState {
             .appendingPathComponent("save.json")
     }
 
+    // MARK: - Admin/debug tools (hidden panel behind long-press in settings)
+
+    /// Wipe everything back to a true fresh install.
+    func adminReset() {
+        coins = 0
+        gems = 0
+        levels = [.line: 1, .bag: 1, .reel: 1, .hook: 1]
+        inventory = [:]
+        aquarium = [:]
+        aquariumLevel = 1
+        lastCollect = .now
+        ownedBoats = ["boat_classic"]
+        currentBoat = "boat_classic"
+        discovered = []
+        claimedChests = []
+        questsDay = ""
+        quests = []
+        ownedHooks = ["hook_classic"]
+        currentHook = "hook_classic"
+        ownedRooms = ["room_cabin"]
+        currentRoom = "room_cabin"
+        baitCounts = [:]
+        equippedBait = "bait_worm"
+        loginStreak = 0
+        lastLoginDay = ""
+        pendingLoginReward = nil
+        claimedAchievements = []
+        records = [:]
+        currentHullId = nil
+        currentRodId = nil
+        currentCaptainId = nil
+        currentDeckId = nil
+        currentDetailId = nil
+        refreshQuests()
+        save()
+    }
+
+    /// Own all content + full dex + all achievements claimed. Levels untouched.
+    func adminUnlockAll() {
+        ownedBoats = allBoats.map(\.id)
+        ownedHooks = allHooks.map(\.id)
+        ownedRooms = allRooms.map(\.id)
+        discovered = Set(allFish.map(\.id))
+        claimedAchievements = Set(allAchievements.map(\.id))
+        save()
+    }
+
+    func adminSetLevel(_ track: UpgradeTrack, _ level: Int) {
+        levels[track] = min(max(level, 1), Self.maxLevel)
+        save()
+    }
+
     func save() {
         let data = SaveData(coins: coins, gems: gems, levels: levels, inventory: inventory,
                             aquarium: aquarium, aquariumLevel: aquariumLevel, lastCollect: lastCollect,
