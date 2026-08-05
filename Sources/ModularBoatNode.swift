@@ -58,9 +58,9 @@ let hullLayouts: [String: HullLayout] = [
     // Gunwale (hull top edge) sits at y≈31 — module bases tuck behind it.
     "flats": HullLayout(
         id: "flats", size: CGSize(width: 260, height: 52),
-        deckPosition: CGPoint(x: 6, y: 58), rodMountPosition: CGPoint(x: 54, y: 42),
-        captainSeatPosition: CGPoint(x: 28, y: 36), waterlineOffset: 5,
-        rodWidth: 48, rodTipOffset: CGPoint(x: 96, y: 70), captainWidth: 40,
+        deckPosition: CGPoint(x: 6, y: 58), rodMountPosition: CGPoint(x: 54, y: 34),
+        captainSeatPosition: CGPoint(x: 28, y: 27), waterlineOffset: 5,
+        rodWidth: 48, rodTipOffset: CGPoint(x: 96, y: 60), captainWidth: 40,
         surfaceZoom: 1.15, legacyAsset: nil),
     "skiff": HullLayout(
         id: "skiff", size: CGSize(width: 200, height: 90),

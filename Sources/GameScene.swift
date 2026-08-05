@@ -464,20 +464,22 @@ final class GameScene: SKScene {
             // z-scheme: hull 0 hides the bases of everything inside it.
             // console -0.2 (base behind gunwale), captain -0.1, platform -0.3,
             // motor -0.5 behind the transom, rod +1 held over the side.
-            // Gunwale top ≈ y31; module bases sink ~8pt behind it.
+            // MIDSHIP gunwale is y≈17 (bbox top is the raised bow tip, measured
+            // from the art: top opaque pixel at ~74% of height amidships).
+            // Module bases sink ~8pt behind that.
             let console = reel >= 9 ? 3 : reel >= 5 ? 2 : 1
             let consoleW: CGFloat = 54 // ~21% of hull length, human scale
             let consoleH = consoleW * 110 / 85
-            extras.append(("deck_console_\(console)", CGPoint(x: -4, y: 23 + consoleH / 2), consoleW, -0.2))
+            extras.append(("deck_console_\(console)", CGPoint(x: -4, y: 9 + consoleH / 2), consoleW, -0.2))
             // motor: powerhead above the transom, shaft in the water
             extras.append(("detail_motor_\(line >= 6 ? 2 : 1)", CGPoint(x: 118, y: -6), 34, -0.5))
             if bag >= 5 {
                 // poling platform at the stern, legs planted at deck level
-                extras.append(("detail_platform_\(bag >= 8 ? 2 : 1)", CGPoint(x: 92, y: 50), 64, -0.3))
+                extras.append(("detail_platform_\(bag >= 8 ? 2 : 1)", CGPoint(x: 92, y: 40), 64, -0.3))
             }
             if state.hookStrength >= 5 {
                 // rod rack mounted at the gunwale
-                extras.append(("detail_rodholder", CGPoint(x: -62, y: 44), 24, -0.15))
+                extras.append(("detail_rodholder", CGPoint(x: -62, y: 26), 24, -0.15))
             }
         }
         let unit = ModularBoatNode(layout: layout,
