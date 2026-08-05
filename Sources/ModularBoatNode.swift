@@ -54,11 +54,13 @@ let allDetailParts = [
 /// Hull tiers. skiff + sportfisher reuse the existing full-boat PNGs as their art.
 let hullLayouts: [String: HullLayout] = [
     // stage-1 modular flats skiff: bare hull + console/motor/platform modules from the sprite sheet
+    // hull stretched to 260x52 (native art is plank-thin); ~60% freeboard above water.
+    // Gunwale (hull top edge) sits at y≈31 — module bases tuck behind it.
     "flats": HullLayout(
-        id: "flats", size: CGSize(width: 260, height: 36),
-        deckPosition: CGPoint(x: 6, y: 58), rodMountPosition: CGPoint(x: 54, y: 30),
-        captainSeatPosition: CGPoint(x: 30, y: 32), waterlineOffset: 6, // ~1/3 of hull below waterline
-        rodWidth: 48, rodTipOffset: CGPoint(x: 96, y: 62), captainWidth: 40,
+        id: "flats", size: CGSize(width: 260, height: 52),
+        deckPosition: CGPoint(x: 6, y: 58), rodMountPosition: CGPoint(x: 54, y: 42),
+        captainSeatPosition: CGPoint(x: 28, y: 36), waterlineOffset: 5,
+        rodWidth: 48, rodTipOffset: CGPoint(x: 96, y: 70), captainWidth: 40,
         surfaceZoom: 1.15, legacyAsset: nil),
     "skiff": HullLayout(
         id: "skiff", size: CGSize(width: 200, height: 90),
@@ -147,8 +149,8 @@ final class ModularBoatNode: SKNode {
         let cap = Self.sprite(captainAsset, width: layout.captainWidth)
             ?? Self.fallbackCaptain(width: layout.captainWidth)
         cap.position = layout.captainSeatPosition
-        // on the flats boat the captain stands IN the hull — legs hidden by the gunwale
-        cap.zPosition = layout.id == "flats" ? -0.3 : 0.9
+        // flats: captain stands IN the hull, behind the gunwale but in front of the console
+        cap.zPosition = layout.id == "flats" ? -0.1 : 0.9
         addChild(cap)
 
         // optional detail prop
@@ -185,7 +187,10 @@ final class ModularBoatNode: SKNode {
     private func addModule(texture: SKTexture, width: CGFloat, at p: CGPoint, z: CGFloat) {
         let node = SKSpriteNode(texture: texture)
         let scale = width / texture.size().width
-        node.size = CGSize(width: width, height: texture.size().height * scale)
+        // flats hull art is plank-thin (415x58): stretch Y to the layout height so
+        // the boat has real freeboard for modules to sit inside
+        let height = layout.id == "flats" ? layout.size.height : texture.size().height * scale
+        node.size = CGSize(width: width, height: height)
         node.position = p
         node.zPosition = z
         // sheet hulls are drawn bow-right; game convention is stern-right

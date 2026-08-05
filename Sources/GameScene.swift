@@ -461,17 +461,23 @@ final class GameScene: SKScene {
             let reel = state.levels[.reel] ?? 1
             let line = state.levels[.line] ?? 1
             let bag = state.levels[.bag] ?? 1
-            // modules sit BEHIND the hull (negative z) so the gunwale hides their bases;
-            // motor rides low: waterline cuts it mid-shaft
+            // z-scheme: hull 0 hides the bases of everything inside it.
+            // console -0.2 (base behind gunwale), captain -0.1, platform -0.3,
+            // motor -0.5 behind the transom, rod +1 held over the side.
+            // Gunwale top ≈ y31; module bases sink ~8pt behind it.
             let console = reel >= 9 ? 3 : reel >= 5 ? 2 : 1
-            // console tops out at the captain's chest; motor hangs off the stern edge
-            extras.append(("deck_console_\(console)", CGPoint(x: -6, y: 36), 34, -0.5))
-            extras.append(("detail_motor_\(line >= 6 ? 2 : 1)", CGPoint(x: 121, y: 6), 34, -0.45))
+            let consoleW: CGFloat = 54 // ~21% of hull length, human scale
+            let consoleH = consoleW * 110 / 85
+            extras.append(("deck_console_\(console)", CGPoint(x: -4, y: 23 + consoleH / 2), consoleW, -0.2))
+            // motor: powerhead above the transom, shaft in the water
+            extras.append(("detail_motor_\(line >= 6 ? 2 : 1)", CGPoint(x: 118, y: -6), 34, -0.5))
             if bag >= 5 {
-                extras.append(("detail_platform_\(bag >= 8 ? 2 : 1)", CGPoint(x: 96, y: 48), 64, -0.55))
+                // poling platform at the stern, legs planted at deck level
+                extras.append(("detail_platform_\(bag >= 8 ? 2 : 1)", CGPoint(x: 92, y: 50), 64, -0.3))
             }
             if state.hookStrength >= 5 {
-                extras.append(("detail_rodholder", CGPoint(x: -62, y: 38), 24, -0.48))
+                // rod rack mounted at the gunwale
+                extras.append(("detail_rodholder", CGPoint(x: -62, y: 44), 24, -0.15))
             }
         }
         let unit = ModularBoatNode(layout: layout,
