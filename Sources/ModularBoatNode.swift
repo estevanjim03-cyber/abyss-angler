@@ -16,6 +16,7 @@ struct HullLayout {
     let captainWidth: CGFloat
     let surfaceZoom: CGFloat        // camera zoom-out at the surface — sells scale
     let legacyAsset: String?        // existing full-boat PNG reused as hull+deck art
+    let deckZone: CGRect            // where the captain can walk, in hull coords
 }
 
 struct RodPart { let id: String; let name: String }
@@ -61,37 +62,43 @@ let hullLayouts: [String: HullLayout] = [
         deckPosition: CGPoint(x: 6, y: 58), rodMountPosition: CGPoint(x: 54, y: 34),
         captainSeatPosition: CGPoint(x: 28, y: 27), waterlineOffset: 5,
         rodWidth: 48, rodTipOffset: CGPoint(x: 96, y: 60), captainWidth: 40,
-        surfaceZoom: 1.15, legacyAsset: nil),
+        surfaceZoom: 1.15, legacyAsset: nil,
+        deckZone: CGRect(x: -80, y: 10, width: 160, height: 40)),
     "skiff": HullLayout(
         id: "skiff", size: CGSize(width: 200, height: 90),
         deckPosition: CGPoint(x: -10, y: 30), rodMountPosition: CGPoint(x: 58, y: 40),
         captainSeatPosition: CGPoint(x: 4, y: 58), waterlineOffset: 26,
         rodWidth: 78, rodTipOffset: CGPoint(x: 108, y: 74), captainWidth: 42,
-        surfaceZoom: 1.15, legacyAsset: "boat_classic"),
+        surfaceZoom: 1.15, legacyAsset: "boat_classic",
+        deckZone: CGRect(x: -62, y: 30, width: 124, height: 42)),
     "runabout": HullLayout(
         id: "runabout", size: CGSize(width: 260, height: 100),
         deckPosition: CGPoint(x: -20, y: 40), rodMountPosition: CGPoint(x: 82, y: 48),
         captainSeatPosition: CGPoint(x: 10, y: 66), waterlineOffset: 30,
         rodWidth: 92, rodTipOffset: CGPoint(x: 140, y: 92), captainWidth: 48,
-        surfaceZoom: 1.2, legacyAsset: nil),
+        surfaceZoom: 1.2, legacyAsset: nil,
+        deckZone: CGRect(x: -80, y: 36, width: 160, height: 48)),
     "console": HullLayout(
         id: "console", size: CGSize(width: 340, height: 138),
         deckPosition: CGPoint(x: -10, y: 52), rodMountPosition: CGPoint(x: 118, y: 58),
         captainSeatPosition: CGPoint(x: 44, y: 62), waterlineOffset: 34,
         rodWidth: 116, rodTipOffset: CGPoint(x: 186, y: 118), captainWidth: 56,
-        surfaceZoom: 1.3, legacyAsset: nil),
+        surfaceZoom: 1.3, legacyAsset: nil,
+        deckZone: CGRect(x: -105, y: 44, width: 210, height: 62)),
     "sportfisher": HullLayout(
         id: "sportfisher", size: CGSize(width: 640, height: 260),
         deckPosition: CGPoint(x: 0, y: 99), rodMountPosition: CGPoint(x: 244, y: 148),
         captainSeatPosition: CGPoint(x: 178, y: 138), waterlineOffset: 99,
         rodWidth: 210, rodTipOffset: CGPoint(x: 336, y: 218), captainWidth: 88,
-        surfaceZoom: 1.5, legacyAsset: "boat_viking"),
+        surfaceZoom: 1.5, legacyAsset: "boat_viking",
+        deckZone: CGRect(x: -200, y: 104, width: 400, height: 116)),
     "longboat": HullLayout(
         id: "longboat", size: CGSize(width: 560, height: 180),
         deckPosition: CGPoint(x: 0, y: 66), rodMountPosition: CGPoint(x: 190, y: 80),
         captainSeatPosition: CGPoint(x: 90, y: 104), waterlineOffset: 56,
         rodWidth: 180, rodTipOffset: CGPoint(x: 290, y: 170), captainWidth: 76,
-        surfaceZoom: 1.45, legacyAsset: nil),
+        surfaceZoom: 1.45, legacyAsset: nil,
+        deckZone: CGRect(x: -172, y: 62, width: 344, height: 82)),
 ]
 
 /// Maps the legacy shop ids (save data) onto hull tiers. Save format unchanged.
@@ -106,6 +113,10 @@ func hullId(forBoat boatId: String) -> String {
 final class ModularBoatNode: SKNode {
     let layout: HullLayout
     private let rodTipNode = SKNode()
+    private var captainNode: SKSpriteNode?
+    private var rodNode: SKSpriteNode?
+    private var rodBasePosition: CGPoint = .zero
+    private var rodTipBasePosition: CGPoint = .zero
 
     /// extraModules: (asset, position in hull coords, width, zPosition) — used by
     /// sheet-based hulls where upgrade tiers swap consoles/motors/platforms.
@@ -144,6 +155,9 @@ final class ModularBoatNode: SKNode {
         let rf = rod.calculateAccumulatedFrame()
         rodTipNode.position = CGPoint(x: rf.maxX - rf.width * 0.05, y: rf.maxY - rf.height * 0.04)
         addChild(rodTipNode)
+        rodNode = rod
+        rodBasePosition = rod.position
+        rodTipBasePosition = rodTipNode.position
 
         // captain seated on the deck
         let cap = Self.sprite(captainAsset, width: layout.captainWidth)
@@ -152,6 +166,7 @@ final class ModularBoatNode: SKNode {
         // flats: captain stands IN the hull, behind the gunwale but in front of the console
         cap.zPosition = layout.id == "flats" ? -0.1 : 0.9
         addChild(cap)
+        captainNode = cap
 
         // optional detail prop
         if let detailId, let d = Self.sprite(detailId, width: layout.size.width * 0.14) {
@@ -175,6 +190,39 @@ final class ModularBoatNode: SKNode {
     /// World-space rod tip — follows bob and roll exactly.
     func rodTipWorldPosition(in scene: SKNode) -> CGPoint {
         scene.convert(rodTipNode.position, from: self)
+    }
+
+    // MARK: - captain walking the deck
+
+    /// Is this hull-local point near enough to the captain to grab them?
+    func isNearCaptain(_ local: CGPoint) -> Bool {
+        guard let cap = captainNode else { return false }
+        return hypot(local.x - cap.position.x, local.y - cap.position.y) < layout.captainWidth * 1.4
+    }
+
+    /// Move the captain along the deck (clamped to deckZone). The rod and rod tip
+    /// follow so fishing from different deck spots moves the line's origin.
+    func moveCaptain(toLocalX x: CGFloat) {
+        guard let cap = captainNode else { return }
+        let zone = layout.deckZone
+        cap.position.x = min(max(x, zone.minX), zone.maxX)
+        let dx = cap.position.x - layout.captainSeatPosition.x
+        rodNode?.position = CGPoint(x: rodBasePosition.x + dx, y: rodBasePosition.y)
+        rodTipNode.position = CGPoint(x: rodTipBasePosition.x + dx, y: rodTipBasePosition.y)
+    }
+
+    func beginCaptainWalk() {
+        guard let cap = captainNode, cap.action(forKey: "walkBob") == nil else { return }
+        cap.run(.repeatForever(.sequence([
+            .moveBy(x: 0, y: 2, duration: 0.12),
+            .moveBy(x: 0, y: -2, duration: 0.12),
+        ])), withKey: "walkBob")
+    }
+
+    func endCaptainWalk() {
+        guard let cap = captainNode else { return }
+        cap.removeAction(forKey: "walkBob")
+        cap.position.y = layout.captainSeatPosition.y
     }
 
     private func addDeck(_ deckId: String) {

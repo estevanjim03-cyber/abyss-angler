@@ -134,7 +134,7 @@ struct GameView: View {
                 .allowsHitTesting(false)
             hud
                 .buttonStyle(PressButtonStyle())
-            if state.phase == .diving {
+            if state.phase == .diving || state.phase == .surface {
                 VStack {
                     Spacer()
                     HStack {

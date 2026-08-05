@@ -932,6 +932,33 @@ final class GameScene: SKScene {
         bossSpawnedThisDive = true
     }
 
+    // MARK: captain drag (surface only)
+
+    private var draggingCaptain = false
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard phase == .surface, let unit = boatUnit, let t = touches.first else { return }
+        let local = unit.convert(t.location(in: self), from: self)
+        if unit.isNearCaptain(local) {
+            draggingCaptain = true
+            unit.beginCaptainWalk()
+        }
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard draggingCaptain, let unit = boatUnit, let t = touches.first else { return }
+        let local = unit.convert(t.location(in: self), from: self)
+        unit.moveCaptain(toLocalX: local.x)
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        if draggingCaptain { boatUnit?.endCaptainWalk(); draggingCaptain = false }
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        touchesEnded(touches, with: event)
+    }
+
     // MARK: public controls
 
     func startDive() {
@@ -982,7 +1009,10 @@ final class GameScene: SKScene {
 
         switch phase {
         case .surface:
-            break
+            // joystick steers the boat along the surface
+            boat.position.x += CGFloat(state.joyX) * 200 * CGFloat(dt)
+            boat.position.x = min(max(boat.position.x, -worldHalfWidth), worldHalfWidth)
+            hook.position.x = boat.position.x + rodTipOffset.x // line stays slack under the rod
         case .diving:
             updateDiving(dt: CGFloat(dt), state: state, now: currentTime)
         case .fighting:
@@ -1344,7 +1374,7 @@ final class GameScene: SKScene {
         parallaxLayer.position.x = cameraNode.position.x * 0.4
         let target: CGPoint
         if phase == .surface {
-            target = CGPoint(x: 0, y: 40)
+            target = CGPoint(x: boat.position.x, y: 40)
         } else {
             target = hook.position // hook rides screen center — no surface clamp, no offset
         }
